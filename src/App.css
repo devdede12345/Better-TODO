@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #45475a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #585b70;
+}
+
+/* Title bar drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* CodeMirror overrides */
+.cm-editor {
+  height: 100%;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.cm-editor .cm-scroller {
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace !important;
+  padding: 8px 0;
+}
+
+.cm-editor .cm-content {
+  padding: 0 16px;
+}
+
+.cm-editor .cm-gutters {
+  background: #1e1e2e;
+  border-right: 1px solid #313244;
+  color: #585b70;
+  min-width: 48px;
+}
+
+.cm-editor .cm-activeLineGutter {
+  background: #181825;
+  color: #cdd6f4;
+}
+
+.cm-editor .cm-activeLine {
+  background: rgba(24, 24, 37, 0.5);
+}
+
+.cm-editor .cm-cursor {
+  border-left-color: #89b4fa;
+  border-left-width: 2px;
+}
+
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground {
+  background: rgba(137, 180, 250, 0.15) !important;
+}
+
+.cm-editor .cm-matchingBracket {
+  background: rgba(137, 180, 250, 0.2);
+  outline: 1px solid rgba(137, 180, 250, 0.4);
+}
+
+.cm-editor .cm-searchMatch {
+  background: rgba(249, 226, 175, 0.3);
+  outline: 1px solid rgba(249, 226, 175, 0.5);
+}
+
+.cm-editor .cm-searchMatch.cm-searchMatch-selected {
+  background: rgba(249, 226, 175, 0.5);
+}
+
+/* Selection highlight */
+::selection {
+  background: rgba(137, 180, 250, 0.2);
+}

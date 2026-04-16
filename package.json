@@ -1,0 +1,54 @@
+{
+  "name": "todo-studio",
+  "version": "1.0.0",
+  "description": "A standalone Todo App with editor-like experience, replicating vscode-todo-plus",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.33.0",
+    "@codemirror/language": "^6.10.2",
+    "@codemirror/commands": "^6.6.0",
+    "@codemirror/search": "^6.5.6",
+    "@codemirror/autocomplete": "^6.18.0",
+    "@lezer/lr": "^1.4.2",
+    "@lezer/highlight": "^1.2.1",
+    "lucide-react": "^0.446.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.4",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.0.1",
+    "electron": "^32.1.0",
+    "electron-builder": "^25.0.5",
+    "postcss": "^8.4.45",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3",
+    "vite-plugin-electron": "^0.28.7",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.todostudio.app",
+    "productName": "Todo Studio",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  }
+}
