@@ -11,17 +11,17 @@
     "electron:build": "vite build && electron-builder"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.6.0",
+    "@codemirror/language": "^6.10.2",
+    "@codemirror/search": "^6.5.6",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.33.0",
-    "@codemirror/language": "^6.10.2",
-    "@codemirror/commands": "^6.6.0",
-    "@codemirror/search": "^6.5.6",
-    "@codemirror/autocomplete": "^6.18.0",
-    "@lezer/lr": "^1.4.2",
     "@lezer/highlight": "^1.2.1",
-    "lucide-react": "^0.446.0"
+    "@lezer/lr": "^1.4.2",
+    "lucide-react": "^0.446.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.5.4",
@@ -34,7 +34,7 @@
     "electron-builder": "^25.0.5",
     "postcss": "^8.4.45",
     "tailwindcss": "^3.4.10",
-    "typescript": "^5.5.4",
+    "typescript": "^5.9.3",
     "vite": "^5.4.3",
     "vite-plugin-electron": "^0.28.7",
     "vite-plugin-electron-renderer": "^0.14.5",
