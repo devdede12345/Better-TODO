@@ -103,18 +103,50 @@ ipcMain.handle("file:getDefault", () => {
     return { path: defaultPath, content: readFileSync(defaultPath, "utf-8") };
   }
   currentFilePath = defaultPath;
-  const defaultContent = `My Project:
-  ☐ Welcome to Todo Studio! @started
-  ☐ Use ☐ for pending tasks
-  ✔ Use ✔ for completed tasks @done
-  ✘ Use ✘ for cancelled tasks @cancelled
-  ☐ Add @tags and +projects to organize
-  ☐ Nest tasks with indentation
-  ☐ Press Ctrl+D to toggle task completion
-  ☐ Press Ctrl+Shift+A to archive done tasks
-  ☐ Due dates work too @due(2025-12-31)
+  const defaultContent = `欢迎使用 Todo Studio:
+  ☐ 这是一个待办事项，使用 ☐ 标记 @started
+  ✔ 这是已完成的任务，使用 ✔ 标记 @done(2025-04-16)
+  ✘ 这是已取消的任务，使用 ✘ 标记 @cancelled(2025-04-16)
+
+快捷键:
+  ☐ 按 Ctrl+D 切换任务状态（待办 → 完成 → 取消 → 待办）
+  ☐ 按 Ctrl+Enter 在当前行下方新建任务
+  ☐ 按 Ctrl+Shift+A 将已完成/已取消的任务归档
+  ☐ 按 Ctrl+S 保存文件 / Ctrl+O 打开文件
+  ☐ 按 Ctrl+Shift+S 另存为
+  ☐ 按 Ctrl+F 搜索 / Ctrl+H 替换
+  ☐ 按 Ctrl+Z 撤销 / Ctrl+Shift+Z 重做
+
+标签系统:
+  ☐ 使用 @tag 添加自定义标签 @重要
+  ☐ 使用 +项目名 标记所属项目 +Todo-Studio
+  ☐ @critical 和 @high 标记紧急任务 @critical
+  ☐ @low 标记低优先级任务 @low
+  ☐ @today 标记今天要做的事 @today
+  ☐ @started 表示已经开始 @started
+  ☐ @due(2025-12-31) 设置截止日期 @due(2025-12-31)
+  ☐ !1 !2 !3 设置优先级（1最高） !1
+
+嵌套任务:
+  ☐ 通过缩进创建层级结构
+    ☐ 这是一个子任务
+      ☐ 这是更深层的子任务
+    ☐ 另一个子任务 +子项目
+
+项目分组:
+  ☐ 以冒号结尾的行会被识别为项目标题
+  ☐ 用来组织不同类别的任务
+
+链接支持:
+  ☐ 支持 URL 高亮 https://github.com
+
+其他格式:
+  - 普通列表项使用 - 开头
+  * 也可以使用 * 开头
+  ☐ 文件会在编辑后 2 秒自动保存
 
 Archive:
+  ✔ 归档的任务会出现在这里 @done(2025-04-16)
 `;
   writeFileSync(defaultPath, defaultContent, "utf-8");
   return { path: defaultPath, content: defaultContent };
