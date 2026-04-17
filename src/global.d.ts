@@ -8,6 +8,7 @@ interface FileResult {
 declare global {
   interface Window {
     electronAPI: {
+      newFile: () => Promise<FileResult | null>;
       openFile: () => Promise<FileResult | null>;
       saveFile: (content: string) => Promise<string | null>;
       saveFileAs: (content: string) => Promise<string | null>;

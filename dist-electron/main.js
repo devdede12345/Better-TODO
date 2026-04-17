@@ -81,6 +81,20 @@ electron.ipcMain.handle("file:saveAs", async (_event, content) => {
   fs.writeFileSync(currentFilePath, content, "utf-8");
   return currentFilePath;
 });
+electron.ipcMain.handle("file:new", async () => {
+  const result = await electron.dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(electron.app.getPath("documents"), "tasks.todo"),
+    filters: [
+      { name: "Todo Files", extensions: ["todo"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return null;
+  currentFilePath = result.filePath;
+  const defaultContent = ``;
+  fs.writeFileSync(currentFilePath, defaultContent, "utf-8");
+  return { path: currentFilePath, content: defaultContent };
+});
 electron.ipcMain.handle("file:getDefault", () => {
   const defaultPath = path.join(electron.app.getPath("documents"), "tasks.todo");
   if (fs.existsSync(defaultPath)) {

@@ -96,6 +96,21 @@ ipcMain.handle("file:saveAs", async (_event, content: string) => {
   return currentFilePath;
 });
 
+ipcMain.handle("file:new", async () => {
+  const result = await dialog.showSaveDialog(mainWindow!, {
+    defaultPath: join(app.getPath("documents"), "tasks.todo"),
+    filters: [
+      { name: "Todo Files", extensions: ["todo"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  if (result.canceled || !result.filePath) return null;
+  currentFilePath = result.filePath;
+  const defaultContent = ``;
+  writeFileSync(currentFilePath, defaultContent, "utf-8");
+  return { path: currentFilePath, content: defaultContent };
+});
+
 ipcMain.handle("file:getDefault", () => {
   const defaultPath = join(app.getPath("documents"), "tasks.todo");
   if (existsSync(defaultPath)) {
