@@ -109,6 +109,11 @@ function toggleItalic(view: EditorView): boolean {
   return toggleWrap(view, "_");
 }
 
+// Toggle underline: wrap/unwrap selection with __...__
+function toggleUnderline(view: EditorView): boolean {
+  return toggleWrap(view, "__");
+}
+
 // Generic wrap/unwrap helper for inline formatting
 function toggleWrap(view: EditorView, marker: string): boolean {
   const { state } = view;
@@ -296,6 +301,10 @@ export const todoKeymap = keymap.of([
   {
     key: "Ctrl-i",
     run: toggleItalic,
+  },
+  {
+    key: "Ctrl-u",
+    run: toggleUnderline,
   },
   {
     key: "Ctrl-Shift-a",

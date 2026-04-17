@@ -219,6 +219,7 @@ function App() {
           <span>Ctrl+Enter new</span>
           <span>Ctrl+B bold</span>
           <span>Ctrl+I italic</span>
+          <span>Ctrl+U underline</span>
           <span>Ctrl+Shift+A archive</span>
         </div>
       </div>

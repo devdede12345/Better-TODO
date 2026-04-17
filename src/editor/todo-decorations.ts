@@ -81,25 +81,22 @@ const boldContentDeco = Decoration.mark({
   attributes: { style: "font-weight: bold; color: #cdd6f4;" },
 });
 
-const boldMarkerDeco = Decoration.mark({
-  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
+const hiddenMarkerDeco = Decoration.mark({
+  attributes: { style: "font-size: 0; overflow: hidden; display: inline-block; width: 0;" },
 });
 
 const italicContentDeco = Decoration.mark({
   attributes: { style: "font-style: italic; color: #cdd6f4;" },
 });
 
-const italicMarkerDeco = Decoration.mark({
-  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
+const underlineContentDeco = Decoration.mark({
+  attributes: { style: "text-decoration: underline; text-decoration-color: #89b4fa; color: #cdd6f4;" },
 });
 
 const strikethroughContentDeco = Decoration.mark({
   attributes: { style: "text-decoration: line-through; opacity: 0.6;" },
 });
 
-const strikethroughMarkerDeco = Decoration.mark({
-  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
-});
 
 const inlineCodeContentDeco = Decoration.mark({
   attributes: {
@@ -108,13 +105,11 @@ const inlineCodeContentDeco = Decoration.mark({
   },
 });
 
-const inlineCodeMarkerDeco = Decoration.mark({
-  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
-});
-
-// Markdown inline patterns: *bold*, _italic_, ~strikethrough~, `code`
+// Markdown inline patterns: *bold*, __underline__, _italic_, ~strikethrough~, `code`
+// Order matters: __underline__ must be checked before _italic_ to avoid conflicts
+const MD_UNDERLINE_RE = /__([^_\n]+)__/g;
 const MD_BOLD_RE = /(?<!\*)\*([^*\n]+)\*(?!\*)/g;
-const MD_ITALIC_RE = /(?<!_)_([^_\n]+)_(?!_)/g;
+const MD_ITALIC_RE = /(?<!_)(?<!_)_([^_\n]+)_(?!_)/g;
 const MD_STRIKE_RE = /(?<!~)~([^~\n]+)~(?!~)/g;
 const MD_CODE_RE = /(?<!`)`([^`\n]+)`(?!`)/g;
 
@@ -293,29 +288,38 @@ function buildDecorations(view: EditorView): DecorationSet {
       }
 
       // ── Markdown inline decorations ──
+      // Track markdown ranges to prevent italic matching inside __underline__
+      const mdRanges: { from: number; to: number }[] = [];
+
+      // Underline: __text__ (must come before italic)
+      addMarkdownDecos(
+        text, line.from, MD_UNDERLINE_RE,
+        hiddenMarkerDeco, underlineContentDeco, 2,
+        decos, mathRanges, mdRanges
+      );
       // Bold: *text*
       addMarkdownDecos(
         text, line.from, MD_BOLD_RE,
-        boldMarkerDeco, boldContentDeco, 1,
-        decos, mathRanges
+        hiddenMarkerDeco, boldContentDeco, 1,
+        decos, mathRanges, mdRanges
       );
       // Italic: _text_
       addMarkdownDecos(
         text, line.from, MD_ITALIC_RE,
-        italicMarkerDeco, italicContentDeco, 1,
-        decos, mathRanges
+        hiddenMarkerDeco, italicContentDeco, 1,
+        decos, mathRanges, mdRanges
       );
       // Strikethrough: ~text~
       addMarkdownDecos(
         text, line.from, MD_STRIKE_RE,
-        strikethroughMarkerDeco, strikethroughContentDeco, 1,
-        decos, mathRanges
+        hiddenMarkerDeco, strikethroughContentDeco, 1,
+        decos, mathRanges, mdRanges
       );
       // Inline code: `text`
       addMarkdownDecos(
         text, line.from, MD_CODE_RE,
-        inlineCodeMarkerDeco, inlineCodeContentDeco, 1,
-        decos, mathRanges
+        hiddenMarkerDeco, inlineCodeContentDeco, 1,
+        decos, mathRanges, mdRanges
       );
 
       // ── Project stats widget ──
@@ -339,7 +343,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   return Decoration.set(decos, true);
 }
 
-// Helper: add markdown mark decorations (dim markers + styled content)
+// Helper: add markdown mark decorations (hide markers + styled content)
 function addMarkdownDecos(
   text: string,
   lineFrom: number,
@@ -348,7 +352,8 @@ function addMarkdownDecos(
   contentDeco: Decoration,
   markerLen: number,
   decos: Range<Decoration>[],
-  mathRanges: { from: number; to: number }[]
+  mathRanges: { from: number; to: number }[],
+  mdRanges?: { from: number; to: number }[]
 ) {
   regex.lastIndex = 0;
   let m: RegExpExecArray | null;
@@ -357,12 +362,16 @@ function addMarkdownDecos(
     const mTo = mFrom + m[0].length;
     // Skip if overlapping with math
     if (mathRanges.some((r) => mFrom < r.to && mTo > r.from)) continue;
+    // Skip if overlapping with already-claimed markdown ranges
+    if (mdRanges && mdRanges.some((r) => mFrom < r.to && mTo > r.from)) continue;
     // Opening marker
     decos.push(markerDeco.range(mFrom, mFrom + markerLen));
     // Content
     decos.push(contentDeco.range(mFrom + markerLen, mTo - markerLen));
     // Closing marker
     decos.push(markerDeco.range(mTo - markerLen, mTo));
+    // Track this range
+    if (mdRanges) mdRanges.push({ from: mFrom, to: mTo });
   }
 }
 
