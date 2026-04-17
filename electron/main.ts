@@ -80,7 +80,8 @@ function createStickerWindow() {
   stickerWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && existsSync(currentFilePath)) {
       const content = readFileSync(currentFilePath, "utf-8");
-      stickerWindow?.webContents.send("sticker:update", content);
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      stickerWindow?.webContents.send("sticker:update", content, fileName);
     }
     stickerWindow?.webContents.send("sticker:lockState", stickerLocked);
   });
@@ -256,8 +257,8 @@ ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
 ipcMain.handle("sticker:getLocked", () => stickerLocked);
 
 // Called by main renderer whenever content changes — forward to sticker
-ipcMain.on("sticker:syncContent", (_event, content: string) => {
+ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content);
+    stickerWindow.webContents.send("sticker:update", content, fileName);
   }
 });

@@ -13,10 +13,10 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   stickerIsVisible: () => electron.ipcRenderer.invoke("sticker:isVisible"),
   stickerSetLocked: (locked) => electron.ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => electron.ipcRenderer.invoke("sticker:getLocked"),
-  stickerSyncContent: (content) => electron.ipcRenderer.send("sticker:syncContent", content),
+  stickerSyncContent: (content, fileName) => electron.ipcRenderer.send("sticker:syncContent", content, fileName),
   // Sticker listeners (used by the sticker window)
   onStickerUpdate: (cb) => {
-    const handler = (_event, content) => cb(content);
+    const handler = (_event, content, fileName) => cb(content, fileName);
     electron.ipcRenderer.on("sticker:update", handler);
     return () => electron.ipcRenderer.removeListener("sticker:update", handler);
   },

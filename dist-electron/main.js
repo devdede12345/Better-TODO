@@ -70,7 +70,8 @@ function createStickerWindow() {
   stickerWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && fs.existsSync(currentFilePath)) {
       const content = fs.readFileSync(currentFilePath, "utf-8");
-      stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:update", content);
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:update", content, fileName);
     }
     stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:lockState", stickerLocked);
   });
@@ -220,8 +221,8 @@ electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
   return locked;
 });
 electron.ipcMain.handle("sticker:getLocked", () => stickerLocked);
-electron.ipcMain.on("sticker:syncContent", (_event, content) => {
+electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content);
+    stickerWindow.webContents.send("sticker:update", content, fileName);
   }
 });

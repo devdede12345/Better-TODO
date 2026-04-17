@@ -45,11 +45,13 @@ export default function StickerApp() {
   const [lines, setLines] = useState<StickerLine[]>([]);
   const [locked, setLocked] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [fileName, setFileName] = useState<string>("No file");
 
   // Listen for content updates from main window
   useEffect(() => {
     if (!window.electronAPI?.onStickerUpdate) return;
-    const cleanup = window.electronAPI.onStickerUpdate((content) => {
+    const cleanup = window.electronAPI.onStickerUpdate((content, name) => {
+      if (name) setFileName(name);
       const parsed = parseStickerContent(content);
       setLines(parsed);
       setPendingCount(parsed.filter((l) => l.type === "task" && l.data.state === "pending").length);
@@ -114,8 +116,8 @@ export default function StickerApp() {
       <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex items-center gap-1.5">
           <GripVertical size={12} className="text-white/30" />
-          <span className="text-[11px] font-semibold text-white/80">
-            Todo Sticker
+          <span className="text-[11px] font-semibold text-white/80 truncate max-w-[140px]" title={fileName}>
+            {fileName}
           </span>
           {pendingCount > 0 && (
             <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 rounded-full ml-1">

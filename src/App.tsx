@@ -30,6 +30,8 @@ function App() {
   const [stats, setStats] = useState({ total: 0, done: 0, pending: 0, cancelled: 0, estMinutes: 0 });
   const [parsedDoc, setParsedDoc] = useState<ParsedDocument | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filePathRef = useRef(filePath);
+  filePathRef.current = filePath;
   const [stickerVisible, setStickerVisible] = useState(false);
 
   // Update stats from parser output
@@ -83,7 +85,8 @@ function App() {
       setIsDirty(true);
 
       // Sync content to sticker window
-      window.electronAPI?.stickerSyncContent?.(newContent);
+      const fn = (filePathRef.current || "Untitled").split(/[\\/]/).pop() || "Untitled";
+      window.electronAPI?.stickerSyncContent?.(newContent, fn);
 
       // Auto-save after 2 seconds of inactivity
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -122,9 +125,10 @@ function App() {
     setStickerVisible(visible);
     // If just opened, sync current content
     if (visible) {
-      window.electronAPI.stickerSyncContent(content);
+      const fn = (filePath || "Untitled").split(/[\\/]/).pop() || "Untitled";
+      window.electronAPI.stickerSyncContent(content, fn);
     }
-  }, [content]);
+  }, [content, filePath]);
 
   // Listen for sticker visibility changes (e.g. closed from sticker itself)
   useEffect(() => {

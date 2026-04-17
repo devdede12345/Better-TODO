@@ -14,11 +14,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stickerIsVisible: () => ipcRenderer.invoke("sticker:isVisible"),
   stickerSetLocked: (locked: boolean) => ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => ipcRenderer.invoke("sticker:getLocked"),
-  stickerSyncContent: (content: string) => ipcRenderer.send("sticker:syncContent", content),
+  stickerSyncContent: (content: string, fileName: string) => ipcRenderer.send("sticker:syncContent", content, fileName),
 
   // Sticker listeners (used by the sticker window)
-  onStickerUpdate: (cb: (content: string) => void) => {
-    const handler = (_event: any, content: string) => cb(content);
+  onStickerUpdate: (cb: (content: string, fileName: string) => void) => {
+    const handler = (_event: any, content: string, fileName: string) => cb(content, fileName);
     ipcRenderer.on("sticker:update", handler);
     return () => ipcRenderer.removeListener("sticker:update", handler);
   },
