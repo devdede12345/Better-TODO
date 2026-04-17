@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+}
+
+/* Sticker container */
+.sticker-root {
+  background: rgba(30, 30, 46, 0.92);
+  border-radius: 12px;
+  border: 1px solid rgba(69, 71, 90, 0.6);
+  backdrop-filter: blur(12px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sticker-root.locked {
+  pointer-events: none;
+}
+
+/* Drag handle */
+.sticker-handle {
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.sticker-handle-nodrag {
+  -webkit-app-region: no-drag;
+}
+
+/* Scrollbar */
+.sticker-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sticker-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sticker-body::-webkit-scrollbar-thumb {
+  background: rgba(69, 71, 90, 0.5);
+  border-radius: 2px;
+}
+
+/* Task items */
+.sticker-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sticker-task.done {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.sticker-task.cancelled {
+  text-decoration: line-through;
+  opacity: 0.35;
+}
+
+.sticker-marker {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.sticker-project {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cba6f7;
+  padding: 6px 0 2px;
+}
+
+.sticker-project:first-child {
+  padding-top: 0;
+}

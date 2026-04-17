@@ -14,6 +14,16 @@ declare global {
       saveFileAs: (content: string) => Promise<string | null>;
       getDefaultFile: () => Promise<FileResult>;
       getCurrentPath: () => Promise<string | null>;
+
+      // Sticker
+      stickerToggle: () => Promise<boolean>;
+      stickerIsVisible: () => Promise<boolean>;
+      stickerSetLocked: (locked: boolean) => Promise<boolean>;
+      stickerGetLocked: () => Promise<boolean>;
+      stickerSyncContent: (content: string) => void;
+      onStickerUpdate: (cb: (content: string) => void) => () => void;
+      onStickerLockState: (cb: (locked: boolean) => void) => () => void;
+      onStickerVisibility: (cb: (visible: boolean) => void) => () => void;
     };
   }
 }

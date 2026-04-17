@@ -1,9 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, screen } from "electron";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
 let mainWindow: BrowserWindow | null = null;
+let stickerWindow: BrowserWindow | null = null;
 let currentFilePath: string | null = null;
+let stickerLocked = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -34,7 +36,63 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+    // Close sticker when main window closes
+    if (stickerWindow && !stickerWindow.isDestroyed()) {
+      stickerWindow.close();
+    }
   });
+}
+
+function createStickerWindow() {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.focus();
+    return;
+  }
+
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+
+  stickerWindow = new BrowserWindow({
+    width: 320,
+    height: 480,
+    x: screenW - 340,
+    y: screenH - 520,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    stickerWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html");
+  } else {
+    stickerWindow.loadFile(join(__dirname, "../dist/sticker.html"));
+  }
+
+  // Send current file content to sticker once it's ready
+  stickerWindow.webContents.on("did-finish-load", () => {
+    if (currentFilePath && existsSync(currentFilePath)) {
+      const content = readFileSync(currentFilePath, "utf-8");
+      stickerWindow?.webContents.send("sticker:update", content);
+    }
+    stickerWindow?.webContents.send("sticker:lockState", stickerLocked);
+  });
+
+  stickerWindow.on("closed", () => {
+    stickerWindow = null;
+    // Notify main window
+    mainWindow?.webContents.send("sticker:visibility", false);
+  });
+
+  // Notify main window sticker is visible
+  mainWindow?.webContents.send("sticker:visibility", true);
 }
 
 app.whenReady().then(createWindow);
@@ -168,3 +226,38 @@ Archive:
 });
 
 ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+
+// ─── Sticker IPC ─────────────────────────────────────────────────────────────
+
+ipcMain.handle("sticker:toggle", () => {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.close();
+    stickerWindow = null;
+    return false;
+  } else {
+    createStickerWindow();
+    return true;
+  }
+});
+
+ipcMain.handle("sticker:isVisible", () => {
+  return stickerWindow !== null && !stickerWindow.isDestroyed();
+});
+
+ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
+  stickerLocked = locked;
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.setIgnoreMouseEvents(locked, { forward: true });
+    stickerWindow.webContents.send("sticker:lockState", locked);
+  }
+  return locked;
+});
+
+ipcMain.handle("sticker:getLocked", () => stickerLocked);
+
+// Called by main renderer whenever content changes — forward to sticker
+ipcMain.on("sticker:syncContent", (_event, content: string) => {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content);
+  }
+});

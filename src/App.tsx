@@ -7,6 +7,16 @@ import {
   Square,
   XSquare,
   Clock,
+  FilePlus,
+  SaveAll,
+  Undo2,
+  Redo2,
+  Search,
+  Replace,
+  Scissors,
+  Copy,
+  ClipboardPaste,
+  Archive,
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
@@ -20,6 +30,7 @@ function App() {
   const [stats, setStats] = useState({ total: 0, done: 0, pending: 0, cancelled: 0, estMinutes: 0 });
   const [parsedDoc, setParsedDoc] = useState<ParsedDocument | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stickerVisible, setStickerVisible] = useState(false);
 
   // Update stats from parser output
   const handleParsed = useCallback((parsed: ParsedDocument) => {
@@ -71,6 +82,9 @@ function App() {
       setContent(newContent);
       setIsDirty(true);
 
+      // Sync content to sticker window
+      window.electronAPI?.stickerSyncContent?.(newContent);
+
       // Auto-save after 2 seconds of inactivity
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
@@ -101,6 +115,31 @@ function App() {
     }
   }, [content]);
 
+  // Sticker toggle
+  const handleStickerToggle = useCallback(async () => {
+    if (!window.electronAPI) return;
+    const visible = await window.electronAPI.stickerToggle();
+    setStickerVisible(visible);
+    // If just opened, sync current content
+    if (visible) {
+      window.electronAPI.stickerSyncContent(content);
+    }
+  }, [content]);
+
+  // Listen for sticker visibility changes (e.g. closed from sticker itself)
+  useEffect(() => {
+    if (!window.electronAPI?.onStickerVisibility) return;
+    const cleanup = window.electronAPI.onStickerVisibility((visible) => {
+      setStickerVisible(visible);
+    });
+    return cleanup;
+  }, []);
+
+  // Check initial sticker state
+  useEffect(() => {
+    window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
+  }, []);
+
   // Keyboard shortcuts (only active when editing)
   useEffect(() => {
     if (!isEditing) return;
@@ -119,6 +158,43 @@ function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [isEditing, handleSave, handleSaveAs, handleOpen]);
+
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuBarRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!openMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (menuBarRef.current && !menuBarRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openMenu]);
+
+  // Execute a menu action and close the menu
+  const menuAction = useCallback((fn: () => void) => {
+    setOpenMenu(null);
+    fn();
+  }, []);
+
+  // Dispatch a CodeMirror command via a synthetic keyboard event
+  const dispatchEditorKey = useCallback((key: string, ctrl = false, shift = false, alt = false) => {
+    const editor = document.querySelector(".cm-editor .cm-content") as HTMLElement | null;
+    if (!editor) return;
+    editor.focus();
+    const event = new KeyboardEvent("keydown", {
+      key,
+      code: `Key${key.toUpperCase()}`,
+      ctrlKey: ctrl,
+      shiftKey: shift,
+      altKey: alt,
+      bubbles: true,
+    });
+    editor.dispatchEvent(event);
+  }, []);
 
   const fileName = filePath ? filePath.split(/[\\/]/).pop() : "Untitled";
 
@@ -159,6 +235,110 @@ function App() {
             {fileName}
             {isDirty && <span className="text-editor-yellow ml-1">●</span>}
           </span>
+        </div>
+
+        {/* ── Menu Bar ── */}
+        <div ref={menuBarRef} className="flex items-center ml-4 titlebar-no-drag relative">
+          {/* File Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenMenu(openMenu === "file" ? null : "file")}
+              onMouseEnter={() => openMenu && setOpenMenu("file")}
+              className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+                openMenu === "file" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+              }`}
+            >
+              File
+            </button>
+            {openMenu === "file" && (
+              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+                <MenuItem icon={<FilePlus size={14} />} label="New File" shortcut="Ctrl+N" onClick={() => menuAction(handleNew)} />
+                <MenuItem icon={<FolderOpen size={14} />} label="Open File" shortcut="Ctrl+O" onClick={() => menuAction(handleOpen)} />
+                <MenuDivider />
+                <MenuItem icon={<Save size={14} />} label="Save" shortcut="Ctrl+S" onClick={() => menuAction(handleSave)} />
+                <MenuItem icon={<SaveAll size={14} />} label="Save As..." shortcut="Ctrl+Shift+S" onClick={() => menuAction(handleSaveAs)} />
+              </div>
+            )}
+          </div>
+
+          {/* Edit Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenMenu(openMenu === "edit" ? null : "edit")}
+              onMouseEnter={() => openMenu && setOpenMenu("edit")}
+              className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+                openMenu === "edit" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+              }`}
+            >
+              Edit
+            </button>
+            {openMenu === "edit" && (
+              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+                <MenuItem icon={<Undo2 size={14} />} label="Undo" shortcut="Ctrl+Z" onClick={() => menuAction(() => dispatchEditorKey("z", true))} />
+                <MenuItem icon={<Redo2 size={14} />} label="Redo" shortcut="Ctrl+Shift+Z" onClick={() => menuAction(() => dispatchEditorKey("z", true, true))} />
+                <MenuDivider />
+                <MenuItem icon={<Scissors size={14} />} label="Cut" shortcut="Ctrl+X" onClick={() => menuAction(() => document.execCommand("cut"))} />
+                <MenuItem icon={<Copy size={14} />} label="Copy" shortcut="Ctrl+C" onClick={() => menuAction(() => document.execCommand("copy"))} />
+                <MenuItem icon={<ClipboardPaste size={14} />} label="Paste" shortcut="Ctrl+V" onClick={() => menuAction(() => document.execCommand("paste"))} />
+                <MenuDivider />
+                <MenuItem icon={<Search size={14} />} label="Find" shortcut="Ctrl+F" onClick={() => menuAction(() => dispatchEditorKey("f", true))} />
+                <MenuItem icon={<Replace size={14} />} label="Replace" shortcut="Ctrl+H" onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
+              </div>
+            )}
+          </div>
+
+          {/* Tasks Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenMenu(openMenu === "tasks" ? null : "tasks")}
+              onMouseEnter={() => openMenu && setOpenMenu("tasks")}
+              className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+                openMenu === "tasks" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+              }`}
+            >
+              Tasks
+            </button>
+            {openMenu === "tasks" && (
+              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+                <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut="Ctrl+Enter" onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
+                <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut="Ctrl+D" onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
+                <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut="Alt+C" onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
+                <MenuDivider />
+                <MenuItem icon={<Archive size={14} />} label="Archive Done" shortcut="Ctrl+Shift+A" onClick={() => menuAction(() => dispatchEditorKey("a", true, true))} />
+              </div>
+            )}
+          </div>
+
+          {/* Format Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setOpenMenu(openMenu === "format" ? null : "format")}
+              onMouseEnter={() => openMenu && setOpenMenu("format")}
+              className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+                openMenu === "format" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+              }`}
+            >
+              Format
+            </button>
+            {openMenu === "format" && (
+              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+                <MenuItem label="Bold" shortcut="Ctrl+B" onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
+                <MenuItem label="Italic" shortcut="Ctrl+I" onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
+                <MenuItem label="Underline" shortcut="Ctrl+U" onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
+              </div>
+            )}
+          </div>
+
+          {/* Sticker Toggle */}
+          <button
+            onClick={handleStickerToggle}
+            className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+              stickerVisible ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+            }`}
+            title={stickerVisible ? "Hide Sticker" : "Show Sticker"}
+          >
+            Sticker
+          </button>
         </div>
 
         <div className="flex-1" />
@@ -225,6 +405,39 @@ function App() {
       </div>
     </div>
   );
+}
+
+// ─── Menu helper components ──────────────────────────────────────────────────
+
+function MenuItem({
+  icon,
+  label,
+  shortcut,
+  onClick,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center w-full px-3 py-1.5 text-[12px] text-editor-subtext hover:text-editor-text hover:bg-editor-border/60 transition-colors gap-2.5"
+    >
+      <span className="w-4 flex-shrink-0 flex items-center justify-center text-editor-muted">
+        {icon || null}
+      </span>
+      <span className="flex-1 text-left">{label}</span>
+      {shortcut && (
+        <span className="text-[11px] text-editor-muted ml-auto">{shortcut}</span>
+      )}
+    </button>
+  );
+}
+
+function MenuDivider() {
+  return <div className="my-1 border-t border-editor-border" />;
 }
 
 export default App;

@@ -36,6 +36,14 @@ export default defineConfig({
     ]),
     renderer(),
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        sticker: path.resolve(__dirname, "sticker.html"),
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

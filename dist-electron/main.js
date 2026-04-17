@@ -1,4 +1,155 @@
-"use strict";const e=require("electron"),s=require("path"),o=require("fs");let i=null,n=null;function r(){i=new e.BrowserWindow({width:1e3,height:700,minWidth:600,minHeight:400,frame:!1,titleBarStyle:"hidden",titleBarOverlay:{color:"#1e1e2e",symbolColor:"#cdd6f4",height:36},backgroundColor:"#1e1e2e",webPreferences:{preload:s.join(__dirname,"preload.js"),contextIsolation:!0,nodeIntegration:!1}}),process.env.VITE_DEV_SERVER_URL?i.loadURL(process.env.VITE_DEV_SERVER_URL):i.loadFile(s.join(__dirname,"../dist/index.html")),i.on("closed",()=>{i=null})}e.app.whenReady().then(r);e.app.on("window-all-closed",()=>{process.platform!=="darwin"&&e.app.quit()});e.app.on("activate",()=>{e.BrowserWindow.getAllWindows().length===0&&r()});e.ipcMain.handle("file:open",async()=>{const t=await e.dialog.showOpenDialog(i,{properties:["openFile"],filters:[{name:"Todo Files",extensions:["todo","txt","md"]},{name:"All Files",extensions:["*"]}]});if(t.canceled||t.filePaths.length===0)return null;n=t.filePaths[0];const l=o.readFileSync(n,"utf-8");return{path:n,content:l}});e.ipcMain.handle("file:save",async(t,l)=>{if(!n){const a=await e.dialog.showSaveDialog(i,{defaultPath:"tasks.todo",filters:[{name:"Todo Files",extensions:["todo"]},{name:"All Files",extensions:["*"]}]});if(a.canceled||!a.filePath)return null;n=a.filePath}return o.writeFileSync(n,l,"utf-8"),n});e.ipcMain.handle("file:saveAs",async(t,l)=>{const a=await e.dialog.showSaveDialog(i,{defaultPath:n||"tasks.todo",filters:[{name:"Todo Files",extensions:["todo"]},{name:"All Files",extensions:["*"]}]});return a.canceled||!a.filePath?null:(n=a.filePath,o.writeFileSync(n,l,"utf-8"),n)});e.ipcMain.handle("file:new",async()=>{const t=await e.dialog.showSaveDialog(i,{defaultPath:s.join(e.app.getPath("documents"),"tasks.todo"),filters:[{name:"Todo Files",extensions:["todo"]},{name:"All Files",extensions:["*"]}]});if(t.canceled||!t.filePath)return null;n=t.filePath;const l="";return o.writeFileSync(n,l,"utf-8"),{path:n,content:l}});e.ipcMain.handle("file:getDefault",()=>{const t=s.join(e.app.getPath("documents"),"tasks.todo");if(o.existsSync(t))return n=t,{path:t,content:o.readFileSync(t,"utf-8")};n=t;const l=`欢迎使用 Todo Studio:
+"use strict";
+const electron = require("electron");
+const path = require("path");
+const fs = require("fs");
+let mainWindow = null;
+let stickerWindow = null;
+let currentFilePath = null;
+let stickerLocked = false;
+function createWindow() {
+  mainWindow = new electron.BrowserWindow({
+    width: 1e3,
+    height: 700,
+    minWidth: 600,
+    minHeight: 400,
+    frame: false,
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#1e1e2e",
+      symbolColor: "#cdd6f4",
+      height: 36
+    },
+    backgroundColor: "#1e1e2e",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  }
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    if (stickerWindow && !stickerWindow.isDestroyed()) {
+      stickerWindow.close();
+    }
+  });
+}
+function createStickerWindow() {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.focus();
+    return;
+  }
+  const { width: screenW, height: screenH } = electron.screen.getPrimaryDisplay().workAreaSize;
+  stickerWindow = new electron.BrowserWindow({
+    width: 320,
+    height: 480,
+    x: screenW - 340,
+    y: screenH - 520,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (process.env.VITE_DEV_SERVER_URL) {
+    stickerWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html");
+  } else {
+    stickerWindow.loadFile(path.join(__dirname, "../dist/sticker.html"));
+  }
+  stickerWindow.webContents.on("did-finish-load", () => {
+    if (currentFilePath && fs.existsSync(currentFilePath)) {
+      const content = fs.readFileSync(currentFilePath, "utf-8");
+      stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:update", content);
+    }
+    stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:lockState", stickerLocked);
+  });
+  stickerWindow.on("closed", () => {
+    stickerWindow = null;
+    mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", false);
+  });
+  mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", true);
+}
+electron.app.whenReady().then(createWindow);
+electron.app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") electron.app.quit();
+});
+electron.app.on("activate", () => {
+  if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+electron.ipcMain.handle("file:open", async () => {
+  const result = await electron.dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile"],
+    filters: [
+      { name: "Todo Files", extensions: ["todo", "txt", "md"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  currentFilePath = result.filePaths[0];
+  const content = fs.readFileSync(currentFilePath, "utf-8");
+  return { path: currentFilePath, content };
+});
+electron.ipcMain.handle("file:save", async (_event, content) => {
+  if (!currentFilePath) {
+    const result = await electron.dialog.showSaveDialog(mainWindow, {
+      defaultPath: "tasks.todo",
+      filters: [
+        { name: "Todo Files", extensions: ["todo"] },
+        { name: "All Files", extensions: ["*"] }
+      ]
+    });
+    if (result.canceled || !result.filePath) return null;
+    currentFilePath = result.filePath;
+  }
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  return currentFilePath;
+});
+electron.ipcMain.handle("file:saveAs", async (_event, content) => {
+  const result = await electron.dialog.showSaveDialog(mainWindow, {
+    defaultPath: currentFilePath || "tasks.todo",
+    filters: [
+      { name: "Todo Files", extensions: ["todo"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return null;
+  currentFilePath = result.filePath;
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  return currentFilePath;
+});
+electron.ipcMain.handle("file:new", async () => {
+  const result = await electron.dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(electron.app.getPath("documents"), "tasks.todo"),
+    filters: [
+      { name: "Todo Files", extensions: ["todo"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return null;
+  currentFilePath = result.filePath;
+  const defaultContent = ``;
+  fs.writeFileSync(currentFilePath, defaultContent, "utf-8");
+  return { path: currentFilePath, content: defaultContent };
+});
+electron.ipcMain.handle("file:getDefault", () => {
+  const defaultPath = path.join(electron.app.getPath("documents"), "tasks.todo");
+  if (fs.existsSync(defaultPath)) {
+    currentFilePath = defaultPath;
+    return { path: defaultPath, content: fs.readFileSync(defaultPath, "utf-8") };
+  }
+  currentFilePath = defaultPath;
+  const defaultContent = `欢迎使用 Todo Studio:
   ☐ 这是一个待办事项，使用 ☐ 标记 @started
   ✔ 这是已完成的任务，使用 ✔ 标记 @done(2025-04-16)
   ✘ 这是已取消的任务，使用 ✘ 标记 @cancelled(2025-04-16)
@@ -42,4 +193,35 @@
 
 Archive:
   ✔ 归档的任务会出现在这里 @done(2025-04-16)
-`;return o.writeFileSync(t,l,"utf-8"),{path:t,content:l}});e.ipcMain.handle("file:getCurrentPath",()=>n);
+`;
+  fs.writeFileSync(defaultPath, defaultContent, "utf-8");
+  return { path: defaultPath, content: defaultContent };
+});
+electron.ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+electron.ipcMain.handle("sticker:toggle", () => {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.close();
+    stickerWindow = null;
+    return false;
+  } else {
+    createStickerWindow();
+    return true;
+  }
+});
+electron.ipcMain.handle("sticker:isVisible", () => {
+  return stickerWindow !== null && !stickerWindow.isDestroyed();
+});
+electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
+  stickerLocked = locked;
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.setIgnoreMouseEvents(locked, { forward: true });
+    stickerWindow.webContents.send("sticker:lockState", locked);
+  }
+  return locked;
+});
+electron.ipcMain.handle("sticker:getLocked", () => stickerLocked);
+electron.ipcMain.on("sticker:syncContent", (_event, content) => {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content);
+  }
+});
