@@ -214,9 +214,11 @@ function App() {
               {formatMinutes(stats.estMinutes)} est
             </span>
           )}
-          <span>Alt+D done</span>
+          <span>Ctrl+D done</span>
           <span>Alt+C cancel</span>
           <span>Ctrl+Enter new</span>
+          <span>Ctrl+B bold</span>
+          <span>Ctrl+I italic</span>
           <span>Ctrl+Shift+A archive</span>
         </div>
       </div>

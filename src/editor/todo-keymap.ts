@@ -1,4 +1,5 @@
 import { EditorView, keymap } from "@codemirror/view";
+import { EditorSelection } from "@codemirror/state";
 
 // Toggle the task marker on the current line between ☐ and ✔ (Alt+D)
 function toggleDone(view: EditorView): boolean {
@@ -96,6 +97,65 @@ function convertBulletToTodo(
     const idx = line.from + bracketDoneMatch[1].length;
     changes.push({ from: idx, to: idx + "[x]".length, insert: "✔" });
   }
+}
+
+// Toggle bold: wrap/unwrap selection with *...*
+function toggleBold(view: EditorView): boolean {
+  return toggleWrap(view, "*");
+}
+
+// Toggle italic: wrap/unwrap selection with _..._
+function toggleItalic(view: EditorView): boolean {
+  return toggleWrap(view, "_");
+}
+
+// Generic wrap/unwrap helper for inline formatting
+function toggleWrap(view: EditorView, marker: string): boolean {
+  const { state } = view;
+  const changes: { from: number; to: number; insert: string }[] = [];
+  const selections: { anchor: number; head: number }[] = [];
+
+  for (const range of state.selection.ranges) {
+    const from = range.from;
+    const to = range.to;
+
+    if (from === to) {
+      // No selection — insert marker pair and place cursor inside
+      changes.push({ from, to, insert: marker + marker });
+      selections.push({ anchor: from + marker.length, head: from + marker.length });
+      continue;
+    }
+
+    const selected = state.sliceDoc(from, to);
+
+    // Check if already wrapped
+    const before = state.sliceDoc(Math.max(0, from - marker.length), from);
+    const after = state.sliceDoc(to, Math.min(state.doc.length, to + marker.length));
+
+    if (before === marker && after === marker) {
+      // Unwrap: remove surrounding markers
+      changes.push({ from: from - marker.length, to: from, insert: "" });
+      changes.push({ from: to, to: to + marker.length, insert: "" });
+      selections.push({ anchor: from - marker.length, head: to - marker.length });
+    } else if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length > marker.length * 2) {
+      // Selection includes the markers — unwrap by stripping them
+      changes.push({ from, to, insert: selected.slice(marker.length, -marker.length) });
+      selections.push({ anchor: from, head: to - marker.length * 2 });
+    } else {
+      // Wrap
+      changes.push({ from, to, insert: marker + selected + marker });
+      selections.push({ anchor: from + marker.length, head: to + marker.length });
+    }
+  }
+
+  if (changes.length === 0) return false;
+  view.dispatch({
+    changes,
+    selection: selections.length > 0
+      ? EditorSelection.create(selections.map(s => EditorSelection.range(s.anchor, s.head)))
+      : undefined,
+  });
+  return true;
 }
 
 // Add a new task below current line with same indentation
@@ -222,12 +282,20 @@ const clickToggle = EditorView.domEventHandlers({
 
 export const todoKeymap = keymap.of([
   {
-    key: "Alt-d",
+    key: "Ctrl-d",
     run: toggleDone,
   },
   {
     key: "Alt-c",
     run: toggleCancelled,
+  },
+  {
+    key: "Ctrl-b",
+    run: toggleBold,
+  },
+  {
+    key: "Ctrl-i",
+    run: toggleItalic,
   },
   {
     key: "Ctrl-Shift-a",

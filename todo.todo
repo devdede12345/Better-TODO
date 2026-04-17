@@ -68,6 +68,7 @@ Formatting:
   You can format text in a markdown-like fashion
   Bold:
     ☐ Use asterisks for *bold*
+
   Italic:
     ☐ Use underscores for _italic_
   Strikethrough:

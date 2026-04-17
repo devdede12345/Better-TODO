@@ -8,6 +8,7 @@ import {
 } from "@codemirror/view";
 import { Range } from "@codemirror/state";
 import { parseTodoDocument, formatMinutes } from "./todoParser";
+import katex from "katex";
 
 // ─── Line-level decorations ──────────────────────────────────────────────────
 
@@ -74,6 +75,95 @@ const markerDeco = Decoration.mark({
   attributes: { style: "cursor: pointer;" },
 });
 
+// ─── Markdown inline mark decorations ────────────────────────────────────────
+
+const boldContentDeco = Decoration.mark({
+  attributes: { style: "font-weight: bold; color: #cdd6f4;" },
+});
+
+const boldMarkerDeco = Decoration.mark({
+  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
+});
+
+const italicContentDeco = Decoration.mark({
+  attributes: { style: "font-style: italic; color: #cdd6f4;" },
+});
+
+const italicMarkerDeco = Decoration.mark({
+  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
+});
+
+const strikethroughContentDeco = Decoration.mark({
+  attributes: { style: "text-decoration: line-through; opacity: 0.6;" },
+});
+
+const strikethroughMarkerDeco = Decoration.mark({
+  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
+});
+
+const inlineCodeContentDeco = Decoration.mark({
+  attributes: {
+    style:
+      "background: rgba(108,112,134,0.2); border-radius: 3px; padding: 1px 5px; font-family: inherit; font-size: 0.92em; color: #fab387;",
+  },
+});
+
+const inlineCodeMarkerDeco = Decoration.mark({
+  attributes: { style: "opacity: 0.3; font-size: 0.85em;" },
+});
+
+// Markdown inline patterns: *bold*, _italic_, ~strikethrough~, `code`
+const MD_BOLD_RE = /(?<!\*)\*([^*\n]+)\*(?!\*)/g;
+const MD_ITALIC_RE = /(?<!_)_([^_\n]+)_(?!_)/g;
+const MD_STRIKE_RE = /(?<!~)~([^~\n]+)~(?!~)/g;
+const MD_CODE_RE = /(?<!`)`([^`\n]+)`(?!`)/g;
+
+// ─── Math widget ─────────────────────────────────────────────────────────────
+
+class MathWidget extends WidgetType {
+  constructor(
+    readonly tex: string,
+    readonly displayMode: boolean
+  ) {
+    super();
+  }
+
+  toDOM(): HTMLElement {
+    const wrapper = document.createElement(this.displayMode ? "div" : "span");
+    wrapper.className = "cm-math-widget";
+    if (this.displayMode) {
+      wrapper.style.cssText =
+        "display: block; text-align: center; padding: 8px 0; cursor: default;";
+    } else {
+      wrapper.style.cssText =
+        "display: inline-block; vertical-align: middle; cursor: default; padding: 0 2px;";
+    }
+    try {
+      wrapper.innerHTML = katex.renderToString(this.tex, {
+        displayMode: this.displayMode,
+        throwOnError: false,
+        output: "html",
+      });
+    } catch {
+      wrapper.textContent = this.tex;
+      wrapper.style.color = "#f38ba8";
+    }
+    return wrapper;
+  }
+
+  eq(other: MathWidget): boolean {
+    return this.tex === other.tex && this.displayMode === other.displayMode;
+  }
+
+  ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+// Math patterns: $$...$$ (display) and $...$ (inline) — single line only
+const MATH_DISPLAY_RE = /\$\$([^$]+?)\$\$/g;
+const MATH_INLINE_RE = /(?<!\$)\$([^$\n]+?)\$(?!\$)/g;
+
 // ─── Project stats widget ────────────────────────────────────────────────────
 
 class ProjectStatsWidget extends WidgetType {
@@ -119,12 +209,14 @@ function buildDecorations(view: EditorView): DecorationSet {
   function collectProjects(projects: typeof parsed.projects) {
     for (const p of projects) {
       projectByLine.set(p.line, p);
-      // Recurse into nested projects in children
       const nested = p.children.filter((c): c is (typeof parsed.projects)[0] => "name" in c);
       collectProjects(nested);
     }
   }
   collectProjects(parsed.projects);
+
+  // Track ranges already occupied by math widgets to avoid overlapping markdown decos
+  const mathRanges: { from: number; to: number }[] = [];
 
   for (const { from, to } of view.visibleRanges) {
     for (let pos = from; pos <= to; ) {
@@ -170,6 +262,62 @@ function buildDecorations(view: EditorView): DecorationSet {
         }
       }
 
+      // ── Math widget decorations (process before markdown to claim ranges) ──
+      // Display math: $$...$$
+      MATH_DISPLAY_RE.lastIndex = 0;
+      let mathMatch: RegExpExecArray | null;
+      while ((mathMatch = MATH_DISPLAY_RE.exec(text)) !== null) {
+        const mFrom = line.from + mathMatch.index;
+        const mTo = mFrom + mathMatch[0].length;
+        mathRanges.push({ from: mFrom, to: mTo });
+        decos.push(
+          Decoration.replace({
+            widget: new MathWidget(mathMatch[1], true),
+          }).range(mFrom, mTo)
+        );
+      }
+
+      // Inline math: $...$
+      MATH_INLINE_RE.lastIndex = 0;
+      while ((mathMatch = MATH_INLINE_RE.exec(text)) !== null) {
+        const mFrom = line.from + mathMatch.index;
+        const mTo = mFrom + mathMatch[0].length;
+        // Skip if overlapping with display math
+        if (mathRanges.some((r) => mFrom < r.to && mTo > r.from)) continue;
+        mathRanges.push({ from: mFrom, to: mTo });
+        decos.push(
+          Decoration.replace({
+            widget: new MathWidget(mathMatch[1], false),
+          }).range(mFrom, mTo)
+        );
+      }
+
+      // ── Markdown inline decorations ──
+      // Bold: *text*
+      addMarkdownDecos(
+        text, line.from, MD_BOLD_RE,
+        boldMarkerDeco, boldContentDeco, 1,
+        decos, mathRanges
+      );
+      // Italic: _text_
+      addMarkdownDecos(
+        text, line.from, MD_ITALIC_RE,
+        italicMarkerDeco, italicContentDeco, 1,
+        decos, mathRanges
+      );
+      // Strikethrough: ~text~
+      addMarkdownDecos(
+        text, line.from, MD_STRIKE_RE,
+        strikethroughMarkerDeco, strikethroughContentDeco, 1,
+        decos, mathRanges
+      );
+      // Inline code: `text`
+      addMarkdownDecos(
+        text, line.from, MD_CODE_RE,
+        inlineCodeMarkerDeco, inlineCodeContentDeco, 1,
+        decos, mathRanges
+      );
+
       // ── Project stats widget ──
       const proj = projectByLine.get(lineIdx);
       if (proj) {
@@ -189,6 +337,33 @@ function buildDecorations(view: EditorView): DecorationSet {
   }
 
   return Decoration.set(decos, true);
+}
+
+// Helper: add markdown mark decorations (dim markers + styled content)
+function addMarkdownDecos(
+  text: string,
+  lineFrom: number,
+  regex: RegExp,
+  markerDeco: Decoration,
+  contentDeco: Decoration,
+  markerLen: number,
+  decos: Range<Decoration>[],
+  mathRanges: { from: number; to: number }[]
+) {
+  regex.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    const mFrom = lineFrom + m.index;
+    const mTo = mFrom + m[0].length;
+    // Skip if overlapping with math
+    if (mathRanges.some((r) => mFrom < r.to && mTo > r.from)) continue;
+    // Opening marker
+    decos.push(markerDeco.range(mFrom, mFrom + markerLen));
+    // Content
+    decos.push(contentDeco.range(mFrom + markerLen, mTo - markerLen));
+    // Closing marker
+    decos.push(markerDeco.range(mTo - markerLen, mTo));
+  }
 }
 
 export const todoDecorations = ViewPlugin.fromClass(

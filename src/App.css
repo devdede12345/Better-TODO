@@ -104,3 +104,19 @@ html, body, #root {
 ::selection {
   background: rgba(137, 180, 250, 0.2);
 }
+
+/* KaTeX math widget overrides for dark theme */
+.cm-math-widget .katex {
+  color: #89b4fa;
+  font-size: 1em;
+}
+
+.cm-math-widget .katex .mord,
+.cm-math-widget .katex .mbin,
+.cm-math-widget .katex .mrel,
+.cm-math-widget .katex .mopen,
+.cm-math-widget .katex .mclose,
+.cm-math-widget .katex .mpunct,
+.cm-math-widget .katex .minner {
+  color: #89b4fa;
+}
