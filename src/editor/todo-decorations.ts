@@ -189,6 +189,13 @@ class ProjectStatsWidget extends WidgetType {
 
 const TAG_RE = /@(critical|high|low|today|done|cancelled|canceled)(?:\([^)]*\))?/g;
 
+// Generic @tag (any @word not matched above) — yellow
+const GENERIC_TAG_RE = /@[\w][\w-]*(?:\([^)]*\))?/g;
+const SPECIAL_TAGS = new Set(["critical", "high", "low", "today", "done", "cancelled", "canceled", "due", "started", "est"]);
+const genericTagDeco = Decoration.mark({
+  attributes: { style: "color: #f9e2af;" },
+});
+
 // ─── Build decorations ──────────────────────────────────────────────────────
 
 function buildDecorations(view: EditorView): DecorationSet {
@@ -234,6 +241,9 @@ function buildDecorations(view: EditorView): DecorationSet {
       }
 
       // ── Inline tag mark decorations ──
+      // Track tag ranges to avoid double-decorating
+      const tagRanges: { from: number; to: number }[] = [];
+
       TAG_RE.lastIndex = 0;
       let tagMatch: RegExpExecArray | null;
       while ((tagMatch = TAG_RE.exec(text)) !== null) {
@@ -243,7 +253,22 @@ function buildDecorations(view: EditorView): DecorationSet {
           const tagFrom = line.from + tagMatch.index;
           const tagTo = tagFrom + tagMatch[0].length;
           decos.push(deco.range(tagFrom, tagTo));
+          tagRanges.push({ from: tagFrom, to: tagTo });
         }
+      }
+
+      // Generic @tag — yellow for any tag not already styled
+      GENERIC_TAG_RE.lastIndex = 0;
+      let genMatch: RegExpExecArray | null;
+      while ((genMatch = GENERIC_TAG_RE.exec(text)) !== null) {
+        const gFrom = line.from + genMatch.index;
+        const gTo = gFrom + genMatch[0].length;
+        // Skip if already handled by specific tag deco
+        if (tagRanges.some((r) => gFrom >= r.from && gTo <= r.to)) continue;
+        // Skip special tags that have their own theme styling
+        const name = genMatch[0].match(/@([\w][\w-]*)/)?.[1];
+        if (name && SPECIAL_TAGS.has(name)) continue;
+        decos.push(genericTagDeco.range(gFrom, gTo));
       }
 
       // ── Clickable marker decoration (cursor: pointer) ──

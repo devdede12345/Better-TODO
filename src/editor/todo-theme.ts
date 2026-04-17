@@ -155,7 +155,7 @@ export const todoEditorTheme = EditorView.theme(
       padding: "0 4px",
     },
     ".tok-todo-tag": {
-      color: colors.cyan,
+      color: colors.yellow,
     },
     ".tok-todo-project": {
       color: colors.purple,
