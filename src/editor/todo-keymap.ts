@@ -317,3 +317,55 @@ export const todoKeymap = keymap.of([
 ]);
 
 export const todoClickToggle = clickToggle;
+
+// ─── Slash commands (/time, etc.) ────────────────────────────────────────────
+
+const SLASH_COMMANDS: Record<string, () => string> = {
+  "/time": () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const mo = now.getMonth() + 1;
+    const d = now.getDate();
+    const h = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    return `${y}/${mo}/${d} ${h}:${mi}`;
+  },
+};
+
+// Build a regex that matches any slash command at the end of input
+const slashCmdNames = Object.keys(SLASH_COMMANDS).map((s) => s.replace("/", "\\/"));
+const SLASH_RE = new RegExp(`(${slashCmdNames.join("|")})$`);
+
+export const todoSlashCommands = EditorView.updateListener.of((update) => {
+  if (!update.docChanged) return;
+
+  // Check each changed range
+  update.transactions.forEach((tr) => {
+    if (!tr.docChanged) return;
+
+    const { state } = update;
+    const pos = state.selection.main.head;
+    // Look back from cursor to find a slash command
+    const lineObj = state.doc.lineAt(pos);
+    const textBefore = lineObj.text.slice(0, pos - lineObj.from);
+
+    const match = textBefore.match(SLASH_RE);
+    if (!match) return;
+
+    const cmd = match[1];
+    const handler = SLASH_COMMANDS[cmd];
+    if (!handler) return;
+
+    const replacement = handler();
+    const cmdFrom = lineObj.from + match.index!;
+    const cmdTo = cmdFrom + cmd.length;
+
+    // Use requestAnimationFrame to avoid dispatching inside an update
+    requestAnimationFrame(() => {
+      update.view.dispatch({
+        changes: { from: cmdFrom, to: cmdTo, insert: replacement },
+        selection: { anchor: cmdFrom + replacement.length },
+      });
+    });
+  });
+});

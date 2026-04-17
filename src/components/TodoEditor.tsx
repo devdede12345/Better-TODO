@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, highlightSpecialChars } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
@@ -8,7 +8,7 @@ import { search, highlightSelectionMatches, searchKeymap } from "@codemirror/sea
 
 import { todoLanguage } from "../editor/todo-language";
 import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
-import { todoKeymap, todoClickToggle } from "../editor/todo-keymap";
+import { todoKeymap, todoClickToggle, todoSlashCommands } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
 import { parseTodoDocument, type ParsedDocument } from "../editor/todoParser";
 
@@ -67,15 +67,15 @@ export default function TodoEditor({ initialContent, onChange, onParsed }: TodoE
           closedText: "▸",
         }),
 
-        // Keymaps
+        // Keymaps — todoKeymap first with high precedence
+        Prec.highest(todoKeymap),
+        todoClickToggle,
         keymap.of([
           ...defaultKeymap,
           ...historyKeymap,
           ...searchKeymap,
           indentWithTab,
         ]),
-        todoKeymap,
-        todoClickToggle,
 
         // Language & theme
         todoLanguage(),
@@ -85,6 +85,7 @@ export default function TodoEditor({ initialContent, onChange, onParsed }: TodoE
 
         // Listeners
         updateListener,
+        todoSlashCommands,
 
         // Editor config
         EditorView.lineWrapping,
