@@ -1,99 +1,101 @@
-import { EditorView } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
-import { keymap } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 
-// Toggle the task marker on the current line between ☐ and ✔
-function toggleTask(view: EditorView): boolean {
+// Toggle the task marker on the current line between ☐ and ✔ (Alt+D)
+function toggleDone(view: EditorView): boolean {
   const { state } = view;
   const changes: { from: number; to: number; insert: string }[] = [];
 
   for (const range of state.selection.ranges) {
     const line = state.doc.lineAt(range.head);
     const text = line.text;
+    const now = new Date().toISOString().slice(0, 10);
 
     if (text.includes("☐")) {
       // Pending -> Done
       const idx = line.from + text.indexOf("☐");
       changes.push({ from: idx, to: idx + "☐".length, insert: "✔" });
-      // Add @done tag if not present
       if (!text.includes("@done")) {
-        const now = new Date().toISOString().slice(0, 10);
         changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
       }
     } else if (text.includes("✔")) {
-      // Done -> Cancelled
+      // Done -> Pending (undo)
       const idx = line.from + text.indexOf("✔");
-      changes.push({ from: idx, to: idx + "✔".length, insert: "✘" });
-      // Replace @done with @cancelled
-      const doneMatch = text.match(/@done(\([^)]*\))?/);
-      if (doneMatch) {
-        const doneIdx = line.from + text.indexOf(doneMatch[0]);
-        const now = new Date().toISOString().slice(0, 10);
-        changes.push({
-          from: doneIdx,
-          to: doneIdx + doneMatch[0].length,
-          insert: `@cancelled(${now})`,
-        });
-      }
-    } else if (text.includes("✘")) {
-      // Cancelled -> Pending
-      const idx = line.from + text.indexOf("✘");
-      changes.push({ from: idx, to: idx + "✘".length, insert: "☐" });
-      // Remove @cancelled tag
-      const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
-      if (cancelMatch) {
-        const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
-        changes.push({
-          from: cancelIdx,
-          to: cancelIdx + cancelMatch[0].length,
-          insert: "",
-        });
-      }
-      // Remove @done tag if present
+      changes.push({ from: idx, to: idx + "✔".length, insert: "☐" });
       const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
       if (doneMatch) {
         const doneIdx = line.from + text.indexOf(doneMatch[0]);
-        changes.push({
-          from: doneIdx,
-          to: doneIdx + doneMatch[0].length,
-          insert: "",
-        });
+        changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
       }
     } else if (text.match(/^\s*[-*]\s/) || text.match(/^\s*\[[ xX]\]/)) {
-      // Convert plain bullet to todo
-      const bulletMatch = text.match(/^(\s*)([-*]\s)/);
-      if (bulletMatch) {
-        const idx = line.from + bulletMatch[1].length;
-        changes.push({
-          from: idx,
-          to: idx + bulletMatch[2].length,
-          insert: "☐ ",
-        });
-      }
-      const bracketMatch = text.match(/^(\s*)\[ \]/);
-      if (bracketMatch) {
-        const idx = line.from + bracketMatch[1].length;
-        changes.push({
-          from: idx,
-          to: idx + "[ ]".length,
-          insert: "☐",
-        });
-      }
-      const bracketDoneMatch = text.match(/^(\s*)\[[xX]\]/);
-      if (bracketDoneMatch) {
-        const idx = line.from + bracketDoneMatch[1].length;
-        changes.push({
-          from: idx,
-          to: idx + "[x]".length,
-          insert: "✔",
-        });
-      }
+      // Convert plain bullet/bracket to pending then mark done
+      convertBulletToTodo(text, line, changes);
     }
   }
 
   if (changes.length === 0) return false;
   view.dispatch({ changes });
   return true;
+}
+
+// Toggle the task marker on the current line between ☐ and ✘ (Alt+C)
+function toggleCancelled(view: EditorView): boolean {
+  const { state } = view;
+  const changes: { from: number; to: number; insert: string }[] = [];
+
+  for (const range of state.selection.ranges) {
+    const line = state.doc.lineAt(range.head);
+    const text = line.text;
+    const now = new Date().toISOString().slice(0, 10);
+
+    if (text.includes("☐")) {
+      // Pending -> Cancelled
+      const idx = line.from + text.indexOf("☐");
+      changes.push({ from: idx, to: idx + "☐".length, insert: "✘" });
+      if (!text.includes("@cancelled")) {
+        changes.push({ from: line.to, to: line.to, insert: ` @cancelled(${now})` });
+      }
+    } else if (text.includes("✘")) {
+      // Cancelled -> Pending (undo)
+      const idx = line.from + text.indexOf("✘");
+      changes.push({ from: idx, to: idx + "✘".length, insert: "☐" });
+      const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
+      if (cancelMatch) {
+        const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
+        changes.push({ from: cancelIdx, to: cancelIdx + cancelMatch[0].length, insert: "" });
+      }
+    } else if (text.match(/^\s*[-*]\s/) || text.match(/^\s*\[[ xX]\]/)) {
+      convertBulletToTodo(text, line, changes);
+    }
+  }
+
+  if (changes.length === 0) return false;
+  view.dispatch({ changes });
+  return true;
+}
+
+// Helper: convert plain bullet / bracket syntax to ☐ todo marker
+function convertBulletToTodo(
+  text: string,
+  line: { from: number },
+  changes: { from: number; to: number; insert: string }[]
+) {
+  const bulletMatch = text.match(/^(\s*)([-*]\s)/);
+  if (bulletMatch) {
+    const idx = line.from + bulletMatch[1].length;
+    changes.push({ from: idx, to: idx + bulletMatch[2].length, insert: "☐ " });
+    return;
+  }
+  const bracketMatch = text.match(/^(\s*)\[ \]/);
+  if (bracketMatch) {
+    const idx = line.from + bracketMatch[1].length;
+    changes.push({ from: idx, to: idx + "[ ]".length, insert: "☐" });
+    return;
+  }
+  const bracketDoneMatch = text.match(/^(\s*)\[[xX]\]/);
+  if (bracketDoneMatch) {
+    const idx = line.from + bracketDoneMatch[1].length;
+    changes.push({ from: idx, to: idx + "[x]".length, insert: "✔" });
+  }
 }
 
 // Add a new task below current line with same indentation
@@ -185,32 +187,26 @@ const clickToggle = EditorView.domEventHandlers({
         const now = new Date().toISOString().slice(0, 10);
 
         if (marker === "☐") {
+          // Pending -> Done
           changes.push({ from: line.from + idx, to: line.from + idx + "☐".length, insert: "✔" });
           if (!text.includes("@done")) {
             changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
           }
         } else if (marker === "✔") {
-          changes.push({ from: line.from + idx, to: line.from + idx + "✔".length, insert: "✘" });
-          const doneMatch = text.match(/@done(\([^)]*\))?/);
+          // Done -> Pending (undo)
+          changes.push({ from: line.from + idx, to: line.from + idx + "✔".length, insert: "☐" });
+          const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
           if (doneMatch) {
             const doneIdx = line.from + text.indexOf(doneMatch[0]);
-            changes.push({
-              from: doneIdx,
-              to: doneIdx + doneMatch[0].length,
-              insert: `@cancelled(${now})`,
-            });
+            changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
           }
         } else if (marker === "✘") {
+          // Cancelled -> Pending (undo)
           changes.push({ from: line.from + idx, to: line.from + idx + "✘".length, insert: "☐" });
           const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
           if (cancelMatch) {
             const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
             changes.push({ from: cancelIdx, to: cancelIdx + cancelMatch[0].length, insert: "" });
-          }
-          const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
-          if (doneMatch) {
-            const doneIdx = line.from + text.indexOf(doneMatch[0]);
-            changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
           }
         }
 
@@ -226,8 +222,12 @@ const clickToggle = EditorView.domEventHandlers({
 
 export const todoKeymap = keymap.of([
   {
-    key: "Ctrl-d",
-    run: toggleTask,
+    key: "Alt-d",
+    run: toggleDone,
+  },
+  {
+    key: "Alt-c",
+    run: toggleCancelled,
   },
   {
     key: "Ctrl-Shift-a",

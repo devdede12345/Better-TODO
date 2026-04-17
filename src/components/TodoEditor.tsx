@@ -10,27 +10,38 @@ import { todoLanguage } from "../editor/todo-language";
 import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
 import { todoKeymap, todoClickToggle } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
+import { parseTodoDocument, type ParsedDocument } from "../editor/todoParser";
 
 interface TodoEditorProps {
   initialContent: string;
   onChange?: (content: string) => void;
+  onParsed?: (parsed: ParsedDocument) => void;
 }
 
-export default function TodoEditor({ initialContent, onChange }: TodoEditorProps) {
+export default function TodoEditor({ initialContent, onChange, onParsed }: TodoEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onParsedRef = useRef(onParsed);
+  onParsedRef.current = onParsed;
 
   useEffect(() => {
     if (!editorRef.current) return;
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        onChangeRef.current?.(update.state.doc.toString());
+        const text = update.state.doc.toString();
+        onChangeRef.current?.(text);
+        onParsedRef.current?.(parseTodoDocument(text));
       }
     });
+
+    // Fire initial parse
+    if (onParsedRef.current) {
+      onParsedRef.current(parseTodoDocument(initialContent));
+    }
 
     const state = EditorState.create({
       doc: initialContent,

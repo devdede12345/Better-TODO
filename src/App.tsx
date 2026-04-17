@@ -6,31 +6,26 @@ import {
   CheckSquare,
   Square,
   XSquare,
+  Clock,
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
+import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
 function App() {
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [stats, setStats] = useState({ total: 0, done: 0, pending: 0, cancelled: 0 });
+  const [stats, setStats] = useState({ total: 0, done: 0, pending: 0, cancelled: 0, estMinutes: 0 });
+  const [parsedDoc, setParsedDoc] = useState<ParsedDocument | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Calculate stats from content
-  const updateStats = useCallback((text: string) => {
-    const lines = text.split("\n");
-    let total = 0, done = 0, pending = 0, cancelled = 0;
-    for (const line of lines) {
-      if (line.includes("☐") || line.includes("✔") || line.includes("✘")) {
-        total++;
-        if (line.includes("✔")) done++;
-        else if (line.includes("✘")) cancelled++;
-        else pending++;
-      }
-    }
-    setStats({ total, done, pending, cancelled });
+  // Update stats from parser output
+  const handleParsed = useCallback((parsed: ParsedDocument) => {
+    setParsedDoc(parsed);
+    const g = parsed.globalStats;
+    setStats({ total: g.total, done: g.done, pending: g.pending, cancelled: g.cancelled, estMinutes: g.estMinutes });
   }, []);
 
   // Enter editor mode with content + path
@@ -39,10 +34,9 @@ function App() {
       setContent(fileContent);
       setFilePath(path);
       setIsDirty(false);
-      updateStats(fileContent);
       setIsEditing(true);
     },
-    [updateStats]
+    []
   );
 
   // Dashboard: New File
@@ -76,7 +70,6 @@ function App() {
     (newContent: string) => {
       setContent(newContent);
       setIsDirty(true);
-      updateStats(newContent);
 
       // Auto-save after 2 seconds of inactivity
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -87,7 +80,7 @@ function App() {
         }
       }, 2000);
     },
-    [updateStats]
+    []
   );
 
   const handleSave = useCallback(async () => {
@@ -190,7 +183,7 @@ function App() {
 
       {/* Editor */}
       <div className="flex-1 overflow-hidden">
-        <TodoEditor initialContent={content} onChange={handleChange} />
+        <TodoEditor initialContent={content} onChange={handleChange} onParsed={handleParsed} />
       </div>
 
       {/* Status Bar */}
@@ -215,8 +208,15 @@ function App() {
         </div>
         <div className="flex-1" />
         <div className="flex items-center gap-3 text-[11px] text-editor-muted">
-          <span>Ctrl+D toggle</span>
-          <span>Ctrl+Enter new task</span>
+          {stats.estMinutes > 0 && (
+            <span className="flex items-center gap-1 text-editor-yellow">
+              <Clock size={11} />
+              {formatMinutes(stats.estMinutes)} est
+            </span>
+          )}
+          <span>Alt+D done</span>
+          <span>Alt+C cancel</span>
+          <span>Ctrl+Enter new</span>
           <span>Ctrl+Shift+A archive</span>
         </div>
       </div>
