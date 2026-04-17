@@ -101,17 +101,13 @@ function newTask(view: EditorView): boolean {
   const { state } = view;
   const line = state.doc.lineAt(state.selection.main.head);
   const indent = line.text.match(/^(\s*)/)?.[1] || "";
-  const hasMarker = line.text.match(/^\s*[☐✔✘]/);
-
-  if (hasMarker) {
-    const insert = `\n${indent}☐ `;
-    view.dispatch({
-      changes: { from: line.to, to: line.to, insert },
-      selection: { anchor: line.to + insert.length },
-    });
-    return true;
-  }
-  return false;
+  // If current line has a marker, inherit indentation; otherwise use current indent + default marker
+  const insert = `\n${indent}☐ `;
+  view.dispatch({
+    changes: { from: line.to, to: line.to, insert },
+    selection: { anchor: line.to + insert.length },
+  });
+  return true;
 }
 
 // Archive completed and cancelled tasks: move them under "Archive:" section
@@ -165,6 +161,69 @@ function archiveTasks(view: EditorView): boolean {
   return true;
 }
 
+// Click handler: toggle task when clicking on ☐/✔/✘ markers
+const clickToggle = EditorView.domEventHandlers({
+  mousedown(event: MouseEvent, view: EditorView) {
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return false;
+
+    const line = view.state.doc.lineAt(pos);
+    const text = line.text;
+    const clickOffset = pos - line.from;
+
+    // Find marker in line and check if click is on it
+    const markers = ["☐", "✔", "✘"];
+    for (const marker of markers) {
+      const idx = text.indexOf(marker);
+      if (idx === -1) continue;
+      // Marker chars are multi-byte; allow clicking within ±1 char
+      if (clickOffset >= idx && clickOffset <= idx + 2) {
+        // Prevent default to avoid cursor placement issues
+        event.preventDefault();
+        // Re-use toggleTask logic on this specific line
+        const changes: { from: number; to: number; insert: string }[] = [];
+        const now = new Date().toISOString().slice(0, 10);
+
+        if (marker === "☐") {
+          changes.push({ from: line.from + idx, to: line.from + idx + "☐".length, insert: "✔" });
+          if (!text.includes("@done")) {
+            changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
+          }
+        } else if (marker === "✔") {
+          changes.push({ from: line.from + idx, to: line.from + idx + "✔".length, insert: "✘" });
+          const doneMatch = text.match(/@done(\([^)]*\))?/);
+          if (doneMatch) {
+            const doneIdx = line.from + text.indexOf(doneMatch[0]);
+            changes.push({
+              from: doneIdx,
+              to: doneIdx + doneMatch[0].length,
+              insert: `@cancelled(${now})`,
+            });
+          }
+        } else if (marker === "✘") {
+          changes.push({ from: line.from + idx, to: line.from + idx + "✘".length, insert: "☐" });
+          const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
+          if (cancelMatch) {
+            const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
+            changes.push({ from: cancelIdx, to: cancelIdx + cancelMatch[0].length, insert: "" });
+          }
+          const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
+          if (doneMatch) {
+            const doneIdx = line.from + text.indexOf(doneMatch[0]);
+            changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
+          }
+        }
+
+        if (changes.length > 0) {
+          view.dispatch({ changes });
+        }
+        return true;
+      }
+    }
+    return false;
+  },
+});
+
 export const todoKeymap = keymap.of([
   {
     key: "Ctrl-d",
@@ -179,3 +238,5 @@ export const todoKeymap = keymap.of([
     run: newTask,
   },
 ]);
+
+export const todoClickToggle = clickToggle;

@@ -5,7 +5,7 @@ import {
   ViewPlugin,
   ViewUpdate,
 } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { Range } from "@codemirror/state";
 
 const doneLineDeco = Decoration.line({
   attributes: {
@@ -19,25 +19,54 @@ const cancelledLineDeco = Decoration.line({
   },
 });
 
+const criticalLineDeco = Decoration.line({
+  attributes: {
+    style: "border-left: 3px solid #f38ba8; padding-left: 4px;",
+  },
+});
+
+const markerDeco = Decoration.mark({
+  attributes: {
+    style: "cursor: pointer;",
+  },
+});
+
 function buildDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
+  const decos: Range<Decoration>[] = [];
 
   for (const { from, to } of view.visibleRanges) {
     for (let pos = from; pos <= to; ) {
       const line = view.state.doc.lineAt(pos);
       const text = line.text;
 
-      if (text.includes("✔") || text.match(/@done/)) {
-        builder.add(line.from, line.from, doneLineDeco);
-      } else if (text.includes("✘") || text.match(/@cancelled/)) {
-        builder.add(line.from, line.from, cancelledLineDeco);
+      // Line-level decorations
+      if (text.includes("✔") || /@done/.test(text)) {
+        decos.push(doneLineDeco.range(line.from));
+      } else if (text.includes("✘") || /@cancelled/.test(text)) {
+        decos.push(cancelledLineDeco.range(line.from));
+      }
+
+      // Critical/high priority line accent
+      if (/@(?:critical|high)/.test(text)) {
+        decos.push(criticalLineDeco.range(line.from));
+      }
+
+      // Clickable marker decoration (cursor: pointer)
+      const markers = ["☐", "✔", "✘"];
+      for (const marker of markers) {
+        const idx = text.indexOf(marker);
+        if (idx !== -1) {
+          const markerFrom = line.from + idx;
+          const markerTo = markerFrom + marker.length;
+          decos.push(markerDeco.range(markerFrom, markerTo));
+        }
       }
 
       pos = line.to + 1;
     }
   }
 
-  return builder.finish();
+  return Decoration.set(decos, true);
 }
 
 export const todoDecorations = ViewPlugin.fromClass(

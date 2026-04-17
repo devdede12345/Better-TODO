@@ -8,7 +8,7 @@ import { search, highlightSelectionMatches, searchKeymap } from "@codemirror/sea
 
 import { todoLanguage } from "../editor/todo-language";
 import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
-import { todoKeymap } from "../editor/todo-keymap";
+import { todoKeymap, todoClickToggle } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
 
 interface TodoEditorProps {
@@ -64,6 +64,7 @@ export default function TodoEditor({ initialContent, onChange }: TodoEditorProps
           indentWithTab,
         ]),
         todoKeymap,
+        todoClickToggle,
 
         // Language & theme
         todoLanguage(),
