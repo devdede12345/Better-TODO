@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stickerSetLocked: (locked: boolean) => ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => ipcRenderer.invoke("sticker:getLocked"),
   stickerSyncContent: (content: string, fileName: string) => ipcRenderer.send("sticker:syncContent", content, fileName),
+  stickerRequestContent: () => ipcRenderer.invoke("sticker:requestContent"),
 
   // Sticker listeners (used by the sticker window)
   onStickerUpdate: (cb: (content: string, fileName: string) => void) => {

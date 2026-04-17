@@ -121,6 +121,11 @@ ipcMain.handle("file:open", async () => {
 
   currentFilePath = result.filePaths[0];
   const content = readFileSync(currentFilePath, "utf-8");
+  // Also sync to sticker
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fn);
+  }
   return { path: currentFilePath, content };
 });
 
@@ -138,6 +143,11 @@ ipcMain.handle("file:save", async (_event, content: string) => {
   }
 
   writeFileSync(currentFilePath, content, "utf-8");
+  // Sync to sticker after save
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fn);
+  }
   return currentFilePath;
 });
 
@@ -227,6 +237,16 @@ Archive:
 });
 
 ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+
+// Sticker can request current file content directly
+ipcMain.handle("sticker:requestContent", () => {
+  if (currentFilePath && existsSync(currentFilePath)) {
+    const content = readFileSync(currentFilePath, "utf-8");
+    const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    return { content, fileName };
+  }
+  return null;
+});
 
 // ─── Sticker IPC ─────────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Lock, Unlock, X, GripVertical } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Lock, Unlock, X, GripVertical, FolderOpen, RefreshCw } from "lucide-react";
 
 interface StickerTask {
   text: string;
@@ -46,18 +46,32 @@ export default function StickerApp() {
   const [locked, setLocked] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [fileName, setFileName] = useState<string>("No file");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Apply parsed content
+  const applyContent = useCallback((content: string, name?: string) => {
+    if (name) setFileName(name);
+    const parsed = parseStickerContent(content);
+    setLines(parsed);
+    setPendingCount(parsed.filter((l) => l.type === "task" && l.data.state === "pending").length);
+  }, []);
+
+  // Self-load: request current content on startup
+  useEffect(() => {
+    window.electronAPI?.stickerRequestContent?.().then((result) => {
+      if (result) applyContent(result.content, result.fileName);
+    });
+  }, [applyContent]);
 
   // Listen for content updates from main window
   useEffect(() => {
     if (!window.electronAPI?.onStickerUpdate) return;
     const cleanup = window.electronAPI.onStickerUpdate((content, name) => {
-      if (name) setFileName(name);
-      const parsed = parseStickerContent(content);
-      setLines(parsed);
-      setPendingCount(parsed.filter((l) => l.type === "task" && l.data.state === "pending").length);
+      applyContent(content, name);
     });
     return cleanup;
-  }, []);
+  }, [applyContent]);
 
   // Listen for lock state changes
   useEffect(() => {
@@ -71,6 +85,18 @@ export default function StickerApp() {
     window.electronAPI?.stickerGetLocked?.().then((l) => setLocked(l));
   }, []);
 
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
   const handleToggleLock = useCallback(async () => {
     if (!window.electronAPI) return;
     const newLocked = await window.electronAPI.stickerSetLocked(!locked);
@@ -80,6 +106,22 @@ export default function StickerApp() {
   const handleClose = useCallback(() => {
     window.electronAPI?.stickerToggle();
   }, []);
+
+  const handleOpenFile = useCallback(async () => {
+    setMenuOpen(false);
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.openFile();
+    if (result) {
+      applyContent(result.content, result.path.split(/[\\/]/).pop() || "Untitled");
+    }
+  }, [applyContent]);
+
+  const handleReload = useCallback(async () => {
+    setMenuOpen(false);
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.stickerRequestContent();
+    if (result) applyContent(result.content, result.fileName);
+  }, [applyContent]);
 
   // Strip tag annotations for cleaner display
   const cleanText = (text: string) => {
@@ -114,18 +156,49 @@ export default function StickerApp() {
     <div className={`sticker-root ${locked ? "locked" : ""}`}>
       {/* Header / drag handle */}
       <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <div className="flex items-center gap-1.5">
-          <GripVertical size={12} className="text-white/30" />
-          <span className="text-[11px] font-semibold text-white/80 truncate max-w-[140px]" title={fileName}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <GripVertical size={12} className="text-white/30 flex-shrink-0" />
+          <span className="text-[11px] font-semibold text-white/80 truncate" title={fileName}>
             {fileName}
           </span>
           {pendingCount > 0 && (
-            <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 rounded-full ml-1">
+            <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 rounded-full flex-shrink-0">
               {pendingCount}
             </span>
           )}
+
+          {/* File menu (inline) */}
+          <div className="relative flex-shrink-0 sticker-handle-nodrag ml-1" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                menuOpen ? "bg-white/10 text-white/90" : "text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              File
+            </button>
+            {menuOpen && (
+              <div className="absolute top-full left-0 mt-0.5 w-44 bg-[#1e1e2e] border border-white/10 rounded-md shadow-xl z-50 py-1">
+                <button
+                  onClick={handleOpenFile}
+                  className="flex items-center w-full px-3 py-1.5 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors gap-2"
+                >
+                  <FolderOpen size={12} />
+                  <span>Open File</span>
+                </button>
+                <button
+                  onClick={handleReload}
+                  className="flex items-center w-full px-3 py-1.5 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors gap-2"
+                >
+                  <RefreshCw size={12} />
+                  <span>Reload</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1 sticker-handle-nodrag">
+
+        <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
           <button
             onClick={handleToggleLock}
             className="p-1 rounded hover:bg-white/10 transition-colors"
