@@ -9,8 +9,8 @@ let stickerLocked = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1280,
+    height: 720,
     minWidth: 600,
     minHeight: 400,
     frame: false,
@@ -80,7 +80,8 @@ function createStickerWindow() {
   stickerWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && existsSync(currentFilePath)) {
       const content = readFileSync(currentFilePath, "utf-8");
-      stickerWindow?.webContents.send("sticker:update", content);
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      stickerWindow?.webContents.send("sticker:update", content, fileName);
     }
     stickerWindow?.webContents.send("sticker:lockState", stickerLocked);
   });
@@ -120,6 +121,11 @@ ipcMain.handle("file:open", async () => {
 
   currentFilePath = result.filePaths[0];
   const content = readFileSync(currentFilePath, "utf-8");
+  // Also sync to sticker
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fn);
+  }
   return { path: currentFilePath, content };
 });
 
@@ -137,6 +143,11 @@ ipcMain.handle("file:save", async (_event, content: string) => {
   }
 
   writeFileSync(currentFilePath, content, "utf-8");
+  // Sync to sticker after save
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fn);
+  }
   return currentFilePath;
 });
 
@@ -227,15 +238,34 @@ Archive:
 
 ipcMain.handle("file:getCurrentPath", () => currentFilePath);
 
+// Sticker can request current file content directly
+ipcMain.handle("sticker:requestContent", () => {
+  if (currentFilePath && existsSync(currentFilePath)) {
+    const content = readFileSync(currentFilePath, "utf-8");
+    const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    return { content, fileName };
+  }
+  return null;
+});
+
 // ─── Sticker IPC ─────────────────────────────────────────────────────────────
 
 ipcMain.handle("sticker:toggle", () => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.close();
     stickerWindow = null;
+    // Restore main window
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.restore();
+      mainWindow.focus();
+    }
     return false;
   } else {
     createStickerWindow();
+    // Minimize main window
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+    }
     return true;
   }
 });
@@ -255,9 +285,21 @@ ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
 
 ipcMain.handle("sticker:getLocked", () => stickerLocked);
 
-// Called by main renderer whenever content changes — forward to sticker
-ipcMain.on("sticker:syncContent", (_event, content: string) => {
+// Back to main editor: restore main window and close sticker
+ipcMain.handle("sticker:back", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.restore();
+    mainWindow.focus();
+  }
   if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content);
+    stickerWindow.close();
+    stickerWindow = null;
+  }
+});
+
+// Called by main renderer whenever content changes — forward to sticker
+ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) => {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fileName);
   }
 });

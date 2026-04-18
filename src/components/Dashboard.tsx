@@ -35,7 +35,7 @@ export default function Dashboard({ onNew, onOpen }: DashboardProps) {
           Better TODO
         </h1>
         <p className="text-sm text-editor-muted mt-2 font-mono">
-          A minimal, editor-like task manager
+          A minimal task manager
         </p>
       </div>
 

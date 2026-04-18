@@ -8,8 +8,8 @@ let currentFilePath = null;
 let stickerLocked = false;
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
-    width: 1e3,
-    height: 700,
+    width: 1280,
+    height: 720,
     minWidth: 600,
     minHeight: 400,
     frame: false,
@@ -70,7 +70,8 @@ function createStickerWindow() {
   stickerWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && fs.existsSync(currentFilePath)) {
       const content = fs.readFileSync(currentFilePath, "utf-8");
-      stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:update", content);
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:update", content, fileName);
     }
     stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:lockState", stickerLocked);
   });
@@ -98,6 +99,10 @@ electron.ipcMain.handle("file:open", async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
   currentFilePath = result.filePaths[0];
   const content = fs.readFileSync(currentFilePath, "utf-8");
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fn);
+  }
   return { path: currentFilePath, content };
 });
 electron.ipcMain.handle("file:save", async (_event, content) => {
@@ -113,6 +118,10 @@ electron.ipcMain.handle("file:save", async (_event, content) => {
     currentFilePath = result.filePath;
   }
   fs.writeFileSync(currentFilePath, content, "utf-8");
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fn);
+  }
   return currentFilePath;
 });
 electron.ipcMain.handle("file:saveAs", async (_event, content) => {
@@ -198,13 +207,28 @@ Archive:
   return { path: defaultPath, content: defaultContent };
 });
 electron.ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+electron.ipcMain.handle("sticker:requestContent", () => {
+  if (currentFilePath && fs.existsSync(currentFilePath)) {
+    const content = fs.readFileSync(currentFilePath, "utf-8");
+    const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    return { content, fileName };
+  }
+  return null;
+});
 electron.ipcMain.handle("sticker:toggle", () => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.close();
     stickerWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.restore();
+      mainWindow.focus();
+    }
     return false;
   } else {
     createStickerWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+    }
     return true;
   }
 });
@@ -220,8 +244,18 @@ electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
   return locked;
 });
 electron.ipcMain.handle("sticker:getLocked", () => stickerLocked);
-electron.ipcMain.on("sticker:syncContent", (_event, content) => {
+electron.ipcMain.handle("sticker:back", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.restore();
+    mainWindow.focus();
+  }
   if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content);
+    stickerWindow.close();
+    stickerWindow = null;
+  }
+});
+electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.webContents.send("sticker:update", content, fileName);
   }
 });
