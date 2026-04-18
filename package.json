@@ -2,6 +2,7 @@
   "name": "todo-studio",
   "version": "1.0.0",
   "description": "A standalone Todo App with editor-like experience, replicating vscode-todo-plus",
+  "author": "devdede",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -44,13 +45,42 @@
   },
   "build": {
     "appId": "com.todostudio.app",
-    "productName": "Todo Studio",
+    "productName": "Better TODO",
+    "copyright": "Copyright © 2025",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
     ],
     "directories": {
       "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "forceCodeSigning": false,
+      "signAndEditExecutable": false,
+      "fileAssociations": [
+        {
+          "ext": "todo",
+          "name": "TODO File",
+          "description": "Better TODO File",
+          "role": "Editor"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Better TODO",
+      "installerLanguages": ["en_US", "zh_CN"]
     }
   }
 }
