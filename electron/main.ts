@@ -254,9 +254,18 @@ ipcMain.handle("sticker:toggle", () => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.close();
     stickerWindow = null;
+    // Restore main window
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.restore();
+      mainWindow.focus();
+    }
     return false;
   } else {
     createStickerWindow();
+    // Minimize main window
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+    }
     return true;
   }
 });
@@ -275,6 +284,18 @@ ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
 });
 
 ipcMain.handle("sticker:getLocked", () => stickerLocked);
+
+// Back to main editor: restore main window and close sticker
+ipcMain.handle("sticker:back", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.restore();
+    mainWindow.focus();
+  }
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    stickerWindow.close();
+    stickerWindow = null;
+  }
+});
 
 // Called by main renderer whenever content changes — forward to sticker
 ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) => {

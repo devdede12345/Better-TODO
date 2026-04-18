@@ -22,6 +22,7 @@ declare global {
       stickerGetLocked: () => Promise<boolean>;
       stickerSyncContent: (content: string, fileName: string) => void;
       stickerRequestContent: () => Promise<{ content: string; fileName: string } | null>;
+      stickerBack: () => Promise<void>;
       onStickerUpdate: (cb: (content: string, fileName: string) => void) => () => void;
       onStickerLockState: (cb: (locked: boolean) => void) => () => void;
       onStickerVisibility: (cb: (visible: boolean) => void) => () => void;

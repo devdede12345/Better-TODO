@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Lock, Unlock, X, GripVertical, FolderOpen, RefreshCw } from "lucide-react";
+import { Lock, Unlock, X, GripVertical, FolderOpen, RefreshCw, Undo2 } from "lucide-react";
 
 interface StickerTask {
   text: string;
@@ -123,6 +123,10 @@ export default function StickerApp() {
     if (result) applyContent(result.content, result.fileName);
   }, [applyContent]);
 
+  const handleBack = useCallback(() => {
+    window.electronAPI?.stickerBack();
+  }, []);
+
   // Strip tag annotations for cleaner display
   const cleanText = (text: string) => {
     return text
@@ -196,6 +200,15 @@ export default function StickerApp() {
               </div>
             )}
           </div>
+
+          {/* Back to editor */}
+          <button
+            onClick={handleBack}
+            className="flex-shrink-0 sticker-handle-nodrag px-1.5 py-0.5 text-[10px] rounded text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
+            title="Back to editor"
+          >
+            Back
+          </button>
         </div>
 
         <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
