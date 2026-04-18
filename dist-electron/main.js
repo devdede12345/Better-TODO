@@ -8,8 +8,8 @@ let currentFilePath = null;
 let stickerLocked = false;
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
-    width: 1e3,
-    height: 700,
+    width: 1280,
+    height: 720,
     minWidth: 600,
     minHeight: 400,
     frame: false,

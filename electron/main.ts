@@ -9,8 +9,8 @@ let stickerLocked = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1280,
+    height: 720,
     minWidth: 600,
     minHeight: 400,
     frame: false,
