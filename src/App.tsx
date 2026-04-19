@@ -144,6 +144,16 @@ function App() {
     window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
   }, []);
 
+  // Listen for tasks appended via Quick Entry
+  useEffect(() => {
+    if (!window.electronAPI?.onTaskAppended) return;
+    const cleanup = window.electronAPI.onTaskAppended((newContent) => {
+      setContent(newContent);
+      (window as any).__todoEditorSetContent?.(newContent);
+    });
+    return cleanup;
+  }, []);
+
   // Keyboard shortcuts (only active when editing)
   useEffect(() => {
     if (!isEditing) return;

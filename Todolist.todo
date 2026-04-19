@@ -1,0 +1,24 @@
+Projects:
+    功能开发: @medium
+        ☐ 实现侧边栏切换快捷键 (Ctrl+/)
+        ☐ 实现关键词/tag搜索与过滤功能 
+        ☐ 支持自定义字体设置 
+        ☐ 实现侧边栏文件树，支持多文件管理 
+        ☐ 开启started
+            >后台增加一个计时器，当complete后，可以显示任务耗时的统计信息。
+
+    MacOS适配:
+        ☐ UI修改
+        ☐ 快捷键映射修改
+        ☐ 分辨率
+
+    优化与文档: @low
+         ☐ 补全深色/浅色模式 (prefers-color-scheme) 适配 
+             > 最好可以参考 Monkeytype, 增加一个主题
+         ☐ 修正 README 技术栈描述，同步其版本号 (Vite+React → 原生 JS) 
+         ☐ 在 README 中增加“快速上手”章节
+
+  Debug:
+    ☐ 修复 Math 公式渲染异常 
+    ☐ Ctrl + Enter 生成任务栏的逻辑修改
+        

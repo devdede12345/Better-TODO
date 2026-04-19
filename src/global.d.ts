@@ -26,6 +26,12 @@ declare global {
       onStickerUpdate: (cb: (content: string, fileName: string) => void) => () => void;
       onStickerLockState: (cb: (locked: boolean) => void) => () => void;
       onStickerVisibility: (cb: (visible: boolean) => void) => () => void;
+
+      // Quick Entry
+      quickEntrySubmit: (text: string) => Promise<void>;
+      quickEntryHide: () => Promise<void>;
+      onQuickEntryShow: (cb: () => void) => () => void;
+      onTaskAppended: (cb: (task: string) => void) => () => void;
     };
   }
 }

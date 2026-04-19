@@ -4,6 +4,8 @@ const path = require("path");
 const fs = require("fs");
 let mainWindow = null;
 let stickerWindow = null;
+let quickEntryWindow = null;
+let tray = null;
 let currentFilePath = null;
 let stickerLocked = false;
 function createWindow() {
@@ -81,7 +83,91 @@ function createStickerWindow() {
   });
   mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", true);
 }
-electron.app.whenReady().then(createWindow);
+function createQuickEntryWindow() {
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
+    quickEntryWindow.show();
+    quickEntryWindow.focus();
+    quickEntryWindow.webContents.send("quickentry:show");
+    return;
+  }
+  const { width: screenW } = electron.screen.getPrimaryDisplay().workAreaSize;
+  quickEntryWindow = new electron.BrowserWindow({
+    width: 520,
+    height: 180,
+    x: Math.round((screenW - 520) / 2),
+    y: 120,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    show: false,
+    hasShadow: true,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (process.env.VITE_DEV_SERVER_URL) {
+    quickEntryWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/quickentry.html");
+  } else {
+    quickEntryWindow.loadFile(path.join(__dirname, "../dist/quickentry.html"));
+  }
+  quickEntryWindow.once("ready-to-show", () => {
+    quickEntryWindow == null ? void 0 : quickEntryWindow.show();
+    quickEntryWindow == null ? void 0 : quickEntryWindow.focus();
+  });
+  quickEntryWindow.on("blur", () => {
+    quickEntryWindow == null ? void 0 : quickEntryWindow.hide();
+  });
+  quickEntryWindow.on("closed", () => {
+    quickEntryWindow = null;
+  });
+}
+function toggleQuickEntry() {
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed() && quickEntryWindow.isVisible()) {
+    quickEntryWindow.hide();
+  } else {
+    createQuickEntryWindow();
+  }
+}
+function createTray() {
+  const iconPath = path.join(__dirname, "../build/icon.png");
+  let trayIcon;
+  if (fs.existsSync(iconPath)) {
+    trayIcon = electron.nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  } else {
+    trayIcon = electron.nativeImage.createEmpty();
+  }
+  tray = new electron.Tray(trayIcon);
+  tray.setToolTip("Better TODO");
+  const contextMenu = electron.Menu.buildFromTemplate([
+    { label: "Show Editor", click: () => {
+      mainWindow == null ? void 0 : mainWindow.show();
+      mainWindow == null ? void 0 : mainWindow.focus();
+    } },
+    { label: "Quick Entry", accelerator: "Ctrl+Space", click: () => toggleQuickEntry() },
+    { type: "separator" },
+    { label: "Quit", click: () => electron.app.quit() }
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.on("double-click", () => {
+    mainWindow == null ? void 0 : mainWindow.show();
+    mainWindow == null ? void 0 : mainWindow.focus();
+  });
+}
+electron.app.whenReady().then(() => {
+  createWindow();
+  createTray();
+  electron.globalShortcut.register("Ctrl+Space", () => {
+    toggleQuickEntry();
+  });
+});
+electron.app.on("will-quit", () => {
+  electron.globalShortcut.unregisterAll();
+});
 electron.app.on("window-all-closed", () => {
   if (process.platform !== "darwin") electron.app.quit();
 });
@@ -257,5 +343,43 @@ electron.ipcMain.handle("sticker:back", () => {
 electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+});
+electron.ipcMain.handle("quickentry:submit", (_event, text) => {
+  if (!text.trim()) return;
+  const tasks = text.split("\n").filter((l) => l.trim()).map((l) => `  ☐ ${l.trim()}`).join("\n");
+  if (currentFilePath && fs.existsSync(currentFilePath)) {
+    let content = fs.readFileSync(currentFilePath, "utf-8");
+    const quickaddIdx = content.indexOf("\nQuickadd:");
+    if (quickaddIdx !== -1) {
+      const afterHeader = quickaddIdx + "\nQuickadd:".length;
+      const rest = content.slice(afterHeader);
+      const nextSection = rest.search(/\n\S[^\n]*:\s*(\([^)]*\))?\s*$/m);
+      const insertAt = nextSection !== -1 ? afterHeader + nextSection : content.length;
+      content = content.slice(0, insertAt) + "\n" + tasks + content.slice(insertAt);
+    } else {
+      const archiveIdx = content.indexOf("\nArchive:");
+      if (archiveIdx !== -1) {
+        content = content.slice(0, archiveIdx) + "\n\nQuickadd:\n" + tasks + content.slice(archiveIdx);
+      } else {
+        content = content.trimEnd() + "\n\nQuickadd:\n" + tasks + "\n";
+      }
+    }
+    fs.writeFileSync(currentFilePath, content, "utf-8");
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("editor:taskAppended", content);
+    }
+    const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    if (stickerWindow && !stickerWindow.isDestroyed()) {
+      stickerWindow.webContents.send("sticker:update", content, fn);
+    }
+  }
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
+    quickEntryWindow.hide();
+  }
+});
+electron.ipcMain.handle("quickentry:hide", () => {
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
+    quickEntryWindow.hide();
   }
 });

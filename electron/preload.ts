@@ -34,4 +34,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("sticker:visibility", handler);
     return () => ipcRenderer.removeListener("sticker:visibility", handler);
   },
+
+  // Quick Entry
+  quickEntrySubmit: (text: string) => ipcRenderer.invoke("quickentry:submit", text),
+  quickEntryHide: () => ipcRenderer.invoke("quickentry:hide"),
+  onQuickEntryShow: (cb: () => void) => {
+    ipcRenderer.on("quickentry:show", () => cb());
+    return () => ipcRenderer.removeAllListeners("quickentry:show");
+  },
+  // Main window listener for appended tasks
+  onTaskAppended: (cb: (task: string) => void) => {
+    const handler = (_event: any, task: string) => cb(task);
+    ipcRenderer.on("editor:taskAppended", handler);
+    return () => ipcRenderer.removeListener("editor:taskAppended", handler);
+  },
 });

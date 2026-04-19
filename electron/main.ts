@@ -1,9 +1,11 @@
-import { app, BrowserWindow, ipcMain, dialog, screen } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, screen, Tray, Menu, globalShortcut, nativeImage } from "electron";
 import { join } from "path";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 
 let mainWindow: BrowserWindow | null = null;
 let stickerWindow: BrowserWindow | null = null;
+let quickEntryWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let currentFilePath: string | null = null;
 let stickerLocked = false;
 
@@ -96,7 +98,109 @@ function createStickerWindow() {
   mainWindow?.webContents.send("sticker:visibility", true);
 }
 
-app.whenReady().then(createWindow);
+// ─── Quick Entry Window ─────────────────────────────────────────────────────
+
+function createQuickEntryWindow() {
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
+    quickEntryWindow.show();
+    quickEntryWindow.focus();
+    quickEntryWindow.webContents.send("quickentry:show");
+    return;
+  }
+
+  const { width: screenW } = screen.getPrimaryDisplay().workAreaSize;
+
+  quickEntryWindow = new BrowserWindow({
+    width: 520,
+    height: 180,
+    x: Math.round((screenW - 520) / 2),
+    y: 120,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    show: false,
+    hasShadow: true,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    quickEntryWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/quickentry.html");
+  } else {
+    quickEntryWindow.loadFile(join(__dirname, "../dist/quickentry.html"));
+  }
+
+  quickEntryWindow.once("ready-to-show", () => {
+    quickEntryWindow?.show();
+    quickEntryWindow?.focus();
+  });
+
+  quickEntryWindow.on("blur", () => {
+    quickEntryWindow?.hide();
+  });
+
+  quickEntryWindow.on("closed", () => {
+    quickEntryWindow = null;
+  });
+}
+
+function toggleQuickEntry() {
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed() && quickEntryWindow.isVisible()) {
+    quickEntryWindow.hide();
+  } else {
+    createQuickEntryWindow();
+  }
+}
+
+// ─── Tray ───────────────────────────────────────────────────────────────────
+
+function createTray() {
+  // Create a simple 16x16 tray icon
+  const iconPath = join(__dirname, "../build/icon.png");
+  let trayIcon: Electron.NativeImage;
+  if (existsSync(iconPath)) {
+    trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  } else {
+    // Fallback: create a simple colored icon
+    trayIcon = nativeImage.createEmpty();
+  }
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip("Better TODO");
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: "Show Editor", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: "Quick Entry", accelerator: "Ctrl+Space", click: () => toggleQuickEntry() },
+    { type: "separator" },
+    { label: "Quit", click: () => app.quit() },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+  tray.on("double-click", () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+}
+
+app.whenReady().then(() => {
+  createWindow();
+  createTray();
+
+  // Register global shortcut Ctrl+Space for quick entry
+  globalShortcut.register("Ctrl+Space", () => {
+    toggleQuickEntry();
+  });
+});
+
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
@@ -301,5 +405,59 @@ ipcMain.handle("sticker:back", () => {
 ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+});
+
+// ─── Quick Entry IPC ────────────────────────────────────────────────────────
+
+ipcMain.handle("quickentry:submit", (_event, text: string) => {
+  if (!text.trim()) return;
+
+  // Format each line as a pending task
+  const tasks = text.split("\n").filter((l: string) => l.trim()).map((l: string) => `  ☐ ${l.trim()}`).join("\n");
+
+  // Append under "Quickadd:" section (create if missing, always before Archive:)
+  if (currentFilePath && existsSync(currentFilePath)) {
+    let content = readFileSync(currentFilePath, "utf-8");
+    const quickaddIdx = content.indexOf("\nQuickadd:");
+    if (quickaddIdx !== -1) {
+      // Find the end of existing Quickadd section (next project header or Archive or EOF)
+      const afterHeader = quickaddIdx + "\nQuickadd:".length;
+      // Find next section boundary after Quickadd:
+      const rest = content.slice(afterHeader);
+      const nextSection = rest.search(/\n\S[^\n]*:\s*(\([^)]*\))?\s*$/m);
+      const insertAt = nextSection !== -1 ? afterHeader + nextSection : content.length;
+      content = content.slice(0, insertAt) + "\n" + tasks + content.slice(insertAt);
+    } else {
+      // Create Quickadd: section
+      const archiveIdx = content.indexOf("\nArchive:");
+      if (archiveIdx !== -1) {
+        content = content.slice(0, archiveIdx) + "\n\nQuickadd:\n" + tasks + content.slice(archiveIdx);
+      } else {
+        content = content.trimEnd() + "\n\nQuickadd:\n" + tasks + "\n";
+      }
+    }
+    writeFileSync(currentFilePath, content, "utf-8");
+
+    // Notify main editor to reload content
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("editor:taskAppended", content);
+    }
+    // Sync to sticker
+    const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    if (stickerWindow && !stickerWindow.isDestroyed()) {
+      stickerWindow.webContents.send("sticker:update", content, fn);
+    }
+  }
+
+  // Hide quick entry after submit
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
+    quickEntryWindow.hide();
+  }
+});
+
+ipcMain.handle("quickentry:hide", () => {
+  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
+    quickEntryWindow.hide();
   }
 });
