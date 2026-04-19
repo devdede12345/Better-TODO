@@ -19,45 +19,45 @@ interface ReminderTask {
   lineIndex: number;
   taskText: string;
   projectName: string;
-  minutes: number;
   timer: NodeJS.Timeout | null;
   dueAt: number;
 }
 
 const activeReminders = new Map<string, ReminderTask>();
 
-function parseDurationToMinutes(input: string): number {
-  const trimmed = input.trim().toLowerCase();
-  if (!trimmed) return 0;
-  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+function extractDueTimestamp(taskText: string): number | null {
+  const dueMatch = taskText.match(/(?:^|\s)@(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (!dueMatch) return null;
 
-  let minutes = 0;
-  const dayMatch = trimmed.match(/(\d+(?:\.\d+)?)d/);
-  const hourMatch = trimmed.match(/(\d+(?:\.\d+)?)h/);
-  const minMatch = trimmed.match(/(\d+(?:\.\d+)?)m/);
-  if (dayMatch) minutes += parseFloat(dayMatch[1]) * 8 * 60;
-  if (hourMatch) minutes += parseFloat(hourMatch[1]) * 60;
-  if (minMatch) minutes += parseFloat(minMatch[1]);
-  return Math.round(minutes);
-}
+  const year = parseInt(dueMatch[1], 10);
+  const month = parseInt(dueMatch[2], 10);
+  const day = parseInt(dueMatch[3], 10);
+  const hour = parseInt(dueMatch[4], 10);
+  const minute = parseInt(dueMatch[5], 10);
 
-function extractReminderMinutes(taskText: string): number {
-  const plainMinuteTag = taskText.match(/(?:^|\s)@(\d+)(?=\s|$)/);
-  if (plainMinuteTag) return parseInt(plainMinuteTag[1], 10);
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (hour < 0 || hour > 23) return null;
+  if (minute < 0 || minute > 59) return null;
 
-  const compactDuration = taskText.match(/(?:^|\s)@(\d+(?:\.\d+)?(?:d|h|m)(?:\d+m)?)(?=\s|$)/);
-  if (compactDuration) return parseDurationToMinutes(compactDuration[1]);
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getHours() !== hour ||
+    date.getMinutes() !== minute
+  ) {
+    return null;
+  }
 
-  const estTag = taskText.match(/@est\(([^)]+)\)/);
-  if (estTag) return parseDurationToMinutes(estTag[1]);
-
-  return 0;
+  return date.getTime();
 }
 
 function cleanTaskLabel(text: string): string {
   return text
     .replace(/@est\([^)]*\)/g, "")
-    .replace(/(?:^|\s)@\d+(?:\.\d+)?(?:d|h|m)?(?:\d+m?)?(?=\s|$)/g, "")
+    .replace(/(?:^|\s)@\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -89,8 +89,8 @@ function extractReminderTasks(content: string, filePath: string): ReminderTask[]
     }
 
     const taskText = pendingMatch[2].trim();
-    const minutes = extractReminderMinutes(taskText);
-    if (minutes <= 0) continue;
+    const dueAt = extractDueTimestamp(taskText);
+    if (!dueAt) continue;
 
     const projectName = projectStack.length > 0 ? projectStack[projectStack.length - 1].name : "Tasks";
     const id = `${filePath}:${i}:${taskText}`;
@@ -101,9 +101,8 @@ function extractReminderTasks(content: string, filePath: string): ReminderTask[]
       lineIndex: i,
       taskText,
       projectName,
-      minutes,
       timer: null,
-      dueAt: 0,
+      dueAt,
     });
   }
 
@@ -168,14 +167,15 @@ function removeReminder(reminderId: string) {
   activeReminders.delete(reminderId);
 }
 
-function scheduleReminder(reminderId: string, delayMs: number) {
+function scheduleReminder(reminderId: string, dueAt: number) {
   const reminder = activeReminders.get(reminderId);
   if (!reminder) return;
-  reminder.dueAt = Date.now() + Math.max(1000, delayMs);
+  reminder.dueAt = dueAt;
   clearReminderTimer(reminder);
+  const delayMs = Math.max(1000, reminder.dueAt - Date.now());
   reminder.timer = setTimeout(() => {
     fireReminder(reminderId);
-  }, Math.max(1000, delayMs));
+  }, delayMs);
 }
 
 function getNextReminderPreview() {
@@ -193,6 +193,7 @@ function getNextReminderPreview() {
     projectName: next.projectName,
     taskText: cleanTaskLabel(next.taskText),
     remainingSeconds,
+    dueAt: next.dueAt,
   };
 }
 
@@ -225,13 +226,13 @@ function showReminderNotification(reminder: ReminderTask) {
       : dialog.showMessageBoxSync(fallbackOptions);
     if (result === 0) onCancel();
     else if (result === 1) onComplete();
-    if (!handled) scheduleReminder(reminder.id, REMINDER_REPEAT_MS);
+    if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     return;
   }
 
   const notification = new Notification({
     title: `提醒 · ${reminder.projectName}`,
-    body: `${cleanTaskLabel(reminder.taskText)}\n已到 ${reminder.minutes} 分钟`,
+    body: `${cleanTaskLabel(reminder.taskText)}\n截止时间已到`,
     actions: [
       { type: "button", text: "取消提醒" },
       { type: "button", text: "已完成" },
@@ -254,7 +255,7 @@ function showReminderNotification(reminder: ReminderTask) {
 
   notification.on("close", () => {
     if (!handled) {
-      scheduleReminder(reminder.id, REMINDER_REPEAT_MS);
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     }
   });
 
@@ -281,7 +282,7 @@ function syncRemindersFromContent(content: string, filePath: string) {
   for (const task of parsed) {
     if (activeReminders.has(task.id)) continue;
     activeReminders.set(task.id, task);
-    scheduleReminder(task.id, task.minutes * 60 * 1000);
+    scheduleReminder(task.id, task.dueAt);
   }
 }
 
@@ -459,7 +460,16 @@ function createTray() {
   tray.setToolTip("Better TODO");
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: "Show Editor", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    {
+      label: "Show Editor",
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          createWindow();
+        }
+        mainWindow?.show();
+        mainWindow?.focus();
+      },
+    },
     { label: "Quick Entry", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
@@ -467,6 +477,9 @@ function createTray() {
 
   tray.setContextMenu(contextMenu);
   tray.on("double-click", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+    }
     mainWindow?.show();
     mainWindow?.focus();
   });
@@ -491,7 +504,7 @@ app.on("will-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  // Keep background process alive (tray + reminders) on both macOS and Windows.
 });
 
 app.on("activate", () => {

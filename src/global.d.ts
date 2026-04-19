@@ -10,6 +10,7 @@ interface ReminderPreview {
   projectName: string;
   taskText: string;
   remainingSeconds: number;
+  dueAt: number;
 }
 
 declare global {

@@ -154,7 +154,7 @@ export default function StickerApp() {
       .replace(/@lasted\([^)]*\)/g, "")
       .replace(/@est\([^)]*\)/g, "")
       .replace(/@due\([^)]*\)/g, "")
-      .replace(/@\d+[hm]\d*[hm]?/g, "")
+      .replace(/@\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}/g, "")
       .trim();
   };
 

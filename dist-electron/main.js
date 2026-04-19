@@ -12,30 +12,26 @@ const isMac = process.platform === "darwin";
 const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
 const activeReminders = /* @__PURE__ */ new Map();
-function parseDurationToMinutes(input) {
-  const trimmed = input.trim().toLowerCase();
-  if (!trimmed) return 0;
-  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
-  let minutes = 0;
-  const dayMatch = trimmed.match(/(\d+(?:\.\d+)?)d/);
-  const hourMatch = trimmed.match(/(\d+(?:\.\d+)?)h/);
-  const minMatch = trimmed.match(/(\d+(?:\.\d+)?)m/);
-  if (dayMatch) minutes += parseFloat(dayMatch[1]) * 8 * 60;
-  if (hourMatch) minutes += parseFloat(hourMatch[1]) * 60;
-  if (minMatch) minutes += parseFloat(minMatch[1]);
-  return Math.round(minutes);
-}
-function extractReminderMinutes(taskText) {
-  const plainMinuteTag = taskText.match(/(?:^|\s)@(\d+)(?=\s|$)/);
-  if (plainMinuteTag) return parseInt(plainMinuteTag[1], 10);
-  const compactDuration = taskText.match(/(?:^|\s)@(\d+(?:\.\d+)?(?:d|h|m)(?:\d+m)?)(?=\s|$)/);
-  if (compactDuration) return parseDurationToMinutes(compactDuration[1]);
-  const estTag = taskText.match(/@est\(([^)]+)\)/);
-  if (estTag) return parseDurationToMinutes(estTag[1]);
-  return 0;
+function extractDueTimestamp(taskText) {
+  const dueMatch = taskText.match(/(?:^|\s)@(\d{4})[\/-](\d{2})[\/-](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (!dueMatch) return null;
+  const year = parseInt(dueMatch[1], 10);
+  const month = parseInt(dueMatch[2], 10);
+  const day = parseInt(dueMatch[3], 10);
+  const hour = parseInt(dueMatch[4], 10);
+  const minute = parseInt(dueMatch[5], 10);
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (hour < 0 || hour > 23) return null;
+  if (minute < 0 || minute > 59) return null;
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day || date.getHours() !== hour || date.getMinutes() !== minute) {
+    return null;
+  }
+  return date.getTime();
 }
 function cleanTaskLabel(text) {
-  return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d+(?:\.\d+)?(?:d|h|m)?(?:\d+m?)?(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
+  return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d{4}[\/-]\d{2}[\/-]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
 }
 function extractReminderTasks(content, filePath) {
   const lines = content.split("\n");
@@ -59,8 +55,8 @@ function extractReminderTasks(content, filePath) {
       projectStack.pop();
     }
     const taskText = pendingMatch[2].trim();
-    const minutes = extractReminderMinutes(taskText);
-    if (minutes <= 0) continue;
+    const dueAt = extractDueTimestamp(taskText);
+    if (!dueAt) continue;
     const projectName = projectStack.length > 0 ? projectStack[projectStack.length - 1].name : "Tasks";
     const id = `${filePath}:${i}:${taskText}`;
     reminders.push({
@@ -69,9 +65,8 @@ function extractReminderTasks(content, filePath) {
       lineIndex: i,
       taskText,
       projectName,
-      minutes,
       timer: null,
-      dueAt: 0
+      dueAt
     });
   }
   return reminders;
@@ -126,14 +121,15 @@ function removeReminder(reminderId) {
   clearReminderTimer(reminder);
   activeReminders.delete(reminderId);
 }
-function scheduleReminder(reminderId, delayMs) {
+function scheduleReminder(reminderId, dueAt) {
   const reminder = activeReminders.get(reminderId);
   if (!reminder) return;
-  reminder.dueAt = Date.now() + Math.max(1e3, delayMs);
+  reminder.dueAt = dueAt;
   clearReminderTimer(reminder);
+  const delayMs = Math.max(1e3, reminder.dueAt - Date.now());
   reminder.timer = setTimeout(() => {
     fireReminder(reminderId);
-  }, Math.max(1e3, delayMs));
+  }, delayMs);
 }
 function getNextReminderPreview() {
   let next = null;
@@ -148,7 +144,8 @@ function getNextReminderPreview() {
     id: next.id,
     projectName: next.projectName,
     taskText: cleanTaskLabel(next.taskText),
-    remainingSeconds
+    remainingSeconds,
+    dueAt: next.dueAt
   };
 }
 function showReminderNotification(reminder) {
@@ -181,7 +178,7 @@ function showReminderNotification(reminder) {
   const notification = new electron.Notification({
     title: `提醒 · ${reminder.projectName}`,
     body: `${cleanTaskLabel(reminder.taskText)}
-已到 ${reminder.minutes} 分钟`,
+截止时间已到`,
     actions: [
       { type: "button", text: "取消提醒" },
       { type: "button", text: "已完成" }
@@ -201,7 +198,7 @@ function showReminderNotification(reminder) {
   });
   notification.on("close", () => {
     if (!handled) {
-      scheduleReminder(reminder.id, REMINDER_REPEAT_MS);
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     }
   });
   notification.show();
@@ -223,7 +220,7 @@ function syncRemindersFromContent(content, filePath) {
   for (const task of parsed) {
     if (activeReminders.has(task.id)) continue;
     activeReminders.set(task.id, task);
-    scheduleReminder(task.id, task.minutes * 60 * 1e3);
+    scheduleReminder(task.id, task.dueAt);
   }
 }
 function createWindow() {
@@ -370,16 +367,25 @@ function createTray() {
   tray = new electron.Tray(trayIcon);
   tray.setToolTip("Better TODO");
   const contextMenu = electron.Menu.buildFromTemplate([
-    { label: "Show Editor", click: () => {
-      mainWindow == null ? void 0 : mainWindow.show();
-      mainWindow == null ? void 0 : mainWindow.focus();
-    } },
+    {
+      label: "Show Editor",
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          createWindow();
+        }
+        mainWindow == null ? void 0 : mainWindow.show();
+        mainWindow == null ? void 0 : mainWindow.focus();
+      }
+    },
     { label: "Quick Entry", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
     { type: "separator" },
     { label: "Quit", click: () => electron.app.quit() }
   ]);
   tray.setContextMenu(contextMenu);
   tray.on("double-click", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+    }
     mainWindow == null ? void 0 : mainWindow.show();
     mainWindow == null ? void 0 : mainWindow.focus();
   });
@@ -398,7 +404,6 @@ electron.app.on("will-quit", () => {
   electron.globalShortcut.unregisterAll();
 });
 electron.app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") electron.app.quit();
 });
 electron.app.on("activate", () => {
   if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();

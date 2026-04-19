@@ -33,6 +33,7 @@ interface ReminderPreview {
   projectName: string;
   taskText: string;
   remainingSeconds: number;
+  dueAt: number;
 }
 
 function App() {
@@ -298,6 +299,16 @@ function App() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }, []);
 
+  const formatDueAt = useCallback((ts: number) => {
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return `${y}/${mo}/${day} ${h}:${m}`;
+  }, []);
+
   // Dispatch a CodeMirror command via a synthetic keyboard event
   const dispatchEditorKey = useCallback((key: string, mod = false, shift = false, alt = false) => {
     const editor = document.querySelector(".cm-editor .cm-content") as HTMLElement | null;
@@ -479,8 +490,8 @@ function App() {
 
         <div className="titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border bg-editor-overlay/60">
           <span className="text-[10px] text-editor-muted uppercase tracking-wide">Next</span>
-          <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText}` : "No active reminders"}>
-            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText}` : "No active reminders"}
+          <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}>
+            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
           </span>
           <span className="text-[11px] font-medium text-editor-accent tabular-nums">
             {nextReminder ? formatCountdown(nextReminder.remainingSeconds) : "--:--"}
