@@ -34,6 +34,7 @@ interface ReminderPreview {
   taskText: string;
   remainingSeconds: number;
   dueAt: number;
+  isOverdue: boolean;
 }
 
 function App() {
@@ -382,7 +383,6 @@ function App() {
           {/* ── Menu Bar ── */}
           <div
             ref={menuBarRef}
-            onMouseLeave={() => setOpenMenu(null)}
             className="flex items-center ml-4 titlebar-no-drag relative z-50"
           >
           {/* File Menu */}
@@ -397,13 +397,16 @@ function App() {
               File
             </button>
             {openMenu === "file" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
+              <>
+                <div className="absolute top-full left-0 h-2 w-56 z-[89]" />
+                <div className={`absolute top-full left-0 mt-2 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<FilePlus size={14} />} label="New File" shortcut={sc("Ctrl+N", "⌘+N")} onClick={() => menuAction(handleNew)} />
                 <MenuItem icon={<FolderOpen size={14} />} label="Open File" shortcut={sc("Ctrl+O", "⌘+O")} onClick={() => menuAction(handleOpen)} />
                 <MenuDivider />
                 <MenuItem icon={<Save size={14} />} label="Save" shortcut={sc("Ctrl+S", "⌘+S")} onClick={() => menuAction(handleSave)} />
                 <MenuItem icon={<SaveAll size={14} />} label="Save As..." shortcut={sc("Ctrl+Shift+S", "⌘+Shift+S")} onClick={() => menuAction(handleSaveAs)} />
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -419,7 +422,9 @@ function App() {
               Edit
             </button>
             {openMenu === "edit" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
+              <>
+                <div className="absolute top-full left-0 h-2 w-56 z-[89]" />
+                <div className={`absolute top-full left-0 mt-2 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<Undo2 size={14} />} label="Undo" shortcut={sc("Ctrl+Z", "⌘+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true))} />
                 <MenuItem icon={<Redo2 size={14} />} label="Redo" shortcut={sc("Ctrl+Shift+Z", "⌘+Shift+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true, true))} />
                 <MenuDivider />
@@ -429,7 +434,8 @@ function App() {
                 <MenuDivider />
                 <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => dispatchEditorKey("f", true))} />
                 <MenuItem icon={<Replace size={14} />} label="Replace" shortcut={sc("Ctrl+H", "⌘+H")} onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -445,13 +451,16 @@ function App() {
               Tasks
             </button>
             {openMenu === "tasks" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
+              <>
+                <div className="absolute top-full left-0 h-2 w-56 z-[89]" />
+                <div className={`absolute top-full left-0 mt-2 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut={sc("Ctrl+Enter", "⌘+Enter")} onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
                 <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut={sc("Ctrl+D", "⌘+D")} onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
                 <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut={sc("Alt+C", "⌥+C")} onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
                 <MenuDivider />
                 <MenuItem icon={<Archive size={14} />} label="Archive Done" shortcut={sc("Ctrl+Shift+A", "⌘+Shift+A")} onClick={() => menuAction(() => dispatchEditorKey("a", true, true))} />
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -467,11 +476,14 @@ function App() {
               Format
             </button>
             {openMenu === "format" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
+              <>
+                <div className="absolute top-full left-0 h-2 w-56 z-[89]" />
+                <div className={`absolute top-full left-0 mt-2 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
                 <MenuItem label="Italic" shortcut={sc("Ctrl+I", "⌘+I")} onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
                 <MenuItem label="Underline" shortcut={sc("Ctrl+U", "⌘+U")} onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -488,13 +500,13 @@ function App() {
         </div>
         </div>
 
-        <div className="titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border bg-editor-overlay/60">
+        <div className={`titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border ${nextReminder?.isOverdue ? "bg-red-500/10" : "bg-editor-overlay/60"}`}>
           <span className="text-[10px] text-editor-muted uppercase tracking-wide">Next</span>
           <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}>
             {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
           </span>
-          <span className="text-[11px] font-medium text-editor-accent tabular-nums">
-            {nextReminder ? formatCountdown(nextReminder.remainingSeconds) : "--:--"}
+          <span className={`text-[11px] font-medium tabular-nums ${nextReminder?.isOverdue ? "text-red-400" : "text-editor-accent"}`}>
+            {nextReminder ? (nextReminder.isOverdue ? "OVERDUE" : formatCountdown(nextReminder.remainingSeconds)) : "--:--"}
           </span>
         </div>
 

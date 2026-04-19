@@ -11,6 +11,7 @@ interface ReminderPreview {
   taskText: string;
   remainingSeconds: number;
   dueAt: number;
+  isOverdue: boolean;
 }
 
 declare global {

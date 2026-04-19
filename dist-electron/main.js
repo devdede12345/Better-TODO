@@ -12,14 +12,7 @@ const isMac = process.platform === "darwin";
 const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
 const activeReminders = /* @__PURE__ */ new Map();
-function extractDueTimestamp(taskText) {
-  const dueMatch = taskText.match(/(?:^|\s)@(\d{4})[\/-](\d{2})[\/-](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
-  if (!dueMatch) return null;
-  const year = parseInt(dueMatch[1], 10);
-  const month = parseInt(dueMatch[2], 10);
-  const day = parseInt(dueMatch[3], 10);
-  const hour = parseInt(dueMatch[4], 10);
-  const minute = parseInt(dueMatch[5], 10);
+function toValidTimestamp(year, month, day, hour, minute) {
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
   if (hour < 0 || hour > 23) return null;
@@ -30,8 +23,43 @@ function extractDueTimestamp(taskText) {
   }
   return date.getTime();
 }
+function extractDueTimestamp(taskText) {
+  const explicitYear = taskText.match(/(?:^|\s)@(\d{4})(?=\s|$)/);
+  const fallbackYear = explicitYear ? parseInt(explicitYear[1], 10) : (/* @__PURE__ */ new Date()).getFullYear();
+  const fullDateMatch = taskText.match(/(?:^|\s)@(\d{4})[\/.](\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (fullDateMatch) {
+    return toValidTimestamp(
+      parseInt(fullDateMatch[1], 10),
+      parseInt(fullDateMatch[2], 10),
+      parseInt(fullDateMatch[3], 10),
+      parseInt(fullDateMatch[4], 10),
+      parseInt(fullDateMatch[5], 10)
+    );
+  }
+  const monthDayMatch = taskText.match(/(?:^|\s)@(\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (monthDayMatch) {
+    return toValidTimestamp(
+      fallbackYear,
+      parseInt(monthDayMatch[1], 10),
+      parseInt(monthDayMatch[2], 10),
+      parseInt(monthDayMatch[3], 10),
+      parseInt(monthDayMatch[4], 10)
+    );
+  }
+  const compactMatch = taskText.match(/(?:^|\s)@(\d{2})(\d{2})(\d{2})(\d{2})(?=\s|$)/);
+  if (compactMatch) {
+    return toValidTimestamp(
+      fallbackYear,
+      parseInt(compactMatch[1], 10),
+      parseInt(compactMatch[2], 10),
+      parseInt(compactMatch[3], 10),
+      parseInt(compactMatch[4], 10)
+    );
+  }
+  return null;
+}
 function cleanTaskLabel(text) {
-  return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d{4}[\/-]\d{2}[\/-]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
+  return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{8}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{4}(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
 }
 function extractReminderTasks(content, filePath) {
   const lines = content.split("\n");
@@ -126,7 +154,7 @@ function scheduleReminder(reminderId, dueAt) {
   if (!reminder) return;
   reminder.dueAt = dueAt;
   clearReminderTimer(reminder);
-  const delayMs = Math.max(1e3, reminder.dueAt - Date.now());
+  const delayMs = Math.max(0, reminder.dueAt - Date.now());
   reminder.timer = setTimeout(() => {
     fireReminder(reminderId);
   }, delayMs);
@@ -139,13 +167,15 @@ function getNextReminderPreview() {
     }
   }
   if (!next) return null;
-  const remainingSeconds = Math.max(0, Math.ceil((next.dueAt - Date.now()) / 1e3));
+  const deltaMs = next.dueAt - Date.now();
+  const remainingSeconds = Math.max(0, Math.ceil(deltaMs / 1e3));
   return {
     id: next.id,
     projectName: next.projectName,
     taskText: cleanTaskLabel(next.taskText),
     remainingSeconds,
-    dueAt: next.dueAt
+    dueAt: next.dueAt,
+    isOverdue: deltaMs <= 0
   };
 }
 function showReminderNotification(reminder) {
@@ -172,7 +202,7 @@ function showReminderNotification(reminder) {
     const result = mainWindow ? electron.dialog.showMessageBoxSync(mainWindow, fallbackOptions) : electron.dialog.showMessageBoxSync(fallbackOptions);
     if (result === 0) onCancel();
     else if (result === 1) onComplete();
-    if (!handled) scheduleReminder(reminder.id, REMINDER_REPEAT_MS);
+    if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     return;
   }
   const notification = new electron.Notification({

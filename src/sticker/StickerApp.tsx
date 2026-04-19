@@ -154,7 +154,10 @@ export default function StickerApp() {
       .replace(/@lasted\([^)]*\)/g, "")
       .replace(/@est\([^)]*\)/g, "")
       .replace(/@due\([^)]*\)/g, "")
-      .replace(/@\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}/g, "")
+      .replace(/@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}/g, "")
+      .replace(/@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}/g, "")
+      .replace(/@\d{8}/g, "")
+      .replace(/@\d{4}(?=\s|$)/g, "")
       .trim();
   };
 
@@ -219,17 +222,16 @@ export default function StickerApp() {
             )}
           </div>
 
-          {/* Back to editor */}
+        </div>
+
+        <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
           <button
             onClick={handleBack}
-            className="h-5 flex-shrink-0 sticker-handle-nodrag px-1.5 py-0.5 text-[10px] rounded sticker-menu-button transition-colors"
+            className="h-5 px-1.5 py-0.5 text-[10px] rounded sticker-menu-button transition-colors"
             title="Back to editor"
           >
             Back
           </button>
-        </div>
-
-        <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
           <button
             onClick={handleToggleLock}
             className="p-1 rounded sticker-icon-button transition-colors"
