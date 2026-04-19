@@ -16,6 +16,12 @@ html, body, #root {
   font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
 }
 
+html.macos-vibrancy,
+body.macos-vibrancy,
+html.macos-vibrancy #root {
+  background: transparent;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

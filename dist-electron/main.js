@@ -8,6 +8,8 @@ let quickEntryWindow = null;
 let tray = null;
 let currentFilePath = null;
 let stickerLocked = false;
+const isMac = process.platform === "darwin";
+const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
     width: 1280,
@@ -15,13 +17,16 @@ function createWindow() {
     minWidth: 600,
     minHeight: 400,
     frame: false,
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
+    titleBarStyle: isMac ? "hiddenInset" : "hidden",
+    titleBarOverlay: isMac ? void 0 : {
       color: "#1e1e2e",
       symbolColor: "#cdd6f4",
       height: 36
     },
-    backgroundColor: "#1e1e2e",
+    backgroundColor: isMac ? "#00000000" : "#1e1e2e",
+    transparent: isMac,
+    vibrancy: isMac ? "under-window" : void 0,
+    visualEffectState: isMac ? "active" : void 0,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -56,8 +61,10 @@ function createStickerWindow() {
     transparent: true,
     resizable: true,
     skipTaskbar: true,
-    hasShadow: false,
+    hasShadow: isMac ? true : false,
     backgroundColor: "#00000000",
+    vibrancy: isMac ? "hud" : void 0,
+    visualEffectState: isMac ? "active" : void 0,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -104,6 +111,8 @@ function createQuickEntryWindow() {
     show: false,
     hasShadow: true,
     backgroundColor: "#00000000",
+    vibrancy: isMac ? "popover" : void 0,
+    visualEffectState: isMac ? "active" : void 0,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -148,7 +157,7 @@ function createTray() {
       mainWindow == null ? void 0 : mainWindow.show();
       mainWindow == null ? void 0 : mainWindow.focus();
     } },
-    { label: "Quick Entry", accelerator: "Ctrl+Space", click: () => toggleQuickEntry() },
+    { label: "Quick Entry", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
     { type: "separator" },
     { label: "Quit", click: () => electron.app.quit() }
   ]);
@@ -161,9 +170,12 @@ function createTray() {
 electron.app.whenReady().then(() => {
   createWindow();
   createTray();
-  electron.globalShortcut.register("Ctrl+Space", () => {
+  const registered = electron.globalShortcut.register(quickEntryShortcut, () => {
     toggleQuickEntry();
   });
+  if (!registered) {
+    console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
+  }
 });
 electron.app.on("will-quit", () => {
   electron.globalShortcut.unregisterAll();

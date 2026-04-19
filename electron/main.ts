@@ -8,6 +8,8 @@ let quickEntryWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentFilePath: string | null = null;
 let stickerLocked = false;
+const isMac = process.platform === "darwin";
+const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -16,13 +18,16 @@ function createWindow() {
     minWidth: 600,
     minHeight: 400,
     frame: false,
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
+    titleBarStyle: isMac ? "hiddenInset" : "hidden",
+    titleBarOverlay: isMac ? undefined : {
       color: "#1e1e2e",
       symbolColor: "#cdd6f4",
       height: 36,
     },
-    backgroundColor: "#1e1e2e",
+    backgroundColor: isMac ? "#00000000" : "#1e1e2e",
+    transparent: isMac,
+    vibrancy: isMac ? "under-window" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -63,8 +68,10 @@ function createStickerWindow() {
     transparent: true,
     resizable: true,
     skipTaskbar: true,
-    hasShadow: false,
+    hasShadow: isMac ? true : false,
     backgroundColor: "#00000000",
+    vibrancy: isMac ? "hud" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -123,6 +130,8 @@ function createQuickEntryWindow() {
     show: false,
     hasShadow: true,
     backgroundColor: "#00000000",
+    vibrancy: isMac ? "popover" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -176,7 +185,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     { label: "Show Editor", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
-    { label: "Quick Entry", accelerator: "Ctrl+Space", click: () => toggleQuickEntry() },
+    { label: "Quick Entry", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);
@@ -192,10 +201,14 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  // Register global shortcut Ctrl+Space for quick entry
-  globalShortcut.register("Ctrl+Space", () => {
+  // Register global shortcut for quick entry
+  const registered = globalShortcut.register(quickEntryShortcut, () => {
     toggleQuickEntry();
   });
+
+  if (!registered) {
+    console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
+  }
 });
 
 app.on("will-quit", () => {

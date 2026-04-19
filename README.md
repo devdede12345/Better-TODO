@@ -127,7 +127,17 @@ npm run electron:build
 
   
 
-构建产物输出到 `release/` 目录，生成 `Better TODO Setup x.x.x.exe` 安装器。
+构建产物输出到 `release/` 目录。
+
+- Windows：`Better TODO Setup x.x.x.exe`
+- macOS：`Better TODO-x.x.x.dmg` 与 `Better TODO-x.x.x-mac.zip`
+
+按平台单独构建：
+
+```bash
+npm run electron:build:win
+npm run electron:build:mac
+```
 
   
 
