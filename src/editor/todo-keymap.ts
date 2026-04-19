@@ -1,7 +1,7 @@
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 
-// Toggle the task marker on the current line between ☐ and ✔ (Alt+D)
+// Toggle the task marker: ☐ → ✔ → ✘ → ☐ (Ctrl+D)
 function toggleDone(view: EditorView): boolean {
   const { state } = view;
   const changes: { from: number; to: number; insert: string }[] = [];
@@ -19,13 +19,26 @@ function toggleDone(view: EditorView): boolean {
         changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
       }
     } else if (text.includes("✔")) {
-      // Done -> Pending (undo)
+      // Done -> Cancelled
       const idx = line.from + text.indexOf("✔");
-      changes.push({ from: idx, to: idx + "✔".length, insert: "☐" });
+      changes.push({ from: idx, to: idx + "✔".length, insert: "✘" });
+      // Remove @done, add @cancelled
       const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
       if (doneMatch) {
         const doneIdx = line.from + text.indexOf(doneMatch[0]);
         changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
+      }
+      if (!text.includes("@cancelled")) {
+        changes.push({ from: line.to, to: line.to, insert: ` @cancelled(${now})` });
+      }
+    } else if (text.includes("✘")) {
+      // Cancelled -> Pending
+      const idx = line.from + text.indexOf("✘");
+      changes.push({ from: idx, to: idx + "✘".length, insert: "☐" });
+      const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
+      if (cancelMatch) {
+        const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
+        changes.push({ from: cancelIdx, to: cancelIdx + cancelMatch[0].length, insert: "" });
       }
     } else if (text.match(/^\s*[-*]\s/) || text.match(/^\s*\[[ xX]\]/)) {
       // Convert plain bullet/bracket to pending then mark done

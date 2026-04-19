@@ -174,27 +174,16 @@ npm run electron:build
 ```
 
 ├── electron/           # Electron 主进程 & preload
-
 │   ├── main.ts         # 主进程（窗口管理、IPC、文件操作）
-
 │   └── preload.ts      # 预加载脚本（IPC 桥接）
-
 ├── src/
-
 │   ├── App.tsx          # 主应用组件
-
 │   ├── components/      # React 组件（Dashboard、TodoEditor）
-
 │   ├── editor/          # CodeMirror 扩展（语法、主题、解析器）
-
 │   └── sticker/         # Sticker 便签窗口
-
 ├── build/              # 构建资源（图标等）
-
 ├── dist/               # Vite 构建产物
-
 ├── release/            # electron-builder 输出
-
 └── package.json
 
 ```
