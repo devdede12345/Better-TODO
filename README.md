@@ -27,7 +27,7 @@
 
 - **Sticker 桌面便签** — 独立悬浮窗口，实时同步显示任务列表
 
-![[Pasted image 20260418155331.png]]
+![ZBE4lb.png](https://i.imgs.ovh/2026/04/19/ZBE4lb.png)
 
 - **数学公式** — 支持 KaTeX 渲染
 
@@ -40,33 +40,19 @@
   
 
 | 快捷键 | 功能 |
-
-|--------|------|
-
+| :--- | :--- |
 | `Ctrl+D` | 切换任务状态（待办 → 完成 → 取消 → 待办） |
-
 | `Ctrl+Enter` | 在当前行下方新建任务 |
-
 | `Ctrl+S` | 保存文件 |
-
 | `Ctrl+Shift+S` | 另存为 |
-
 | `Ctrl+O` | 打开文件 |
-
 | `Ctrl+F` | 搜索 |
-
 | `Ctrl+H` | 替换 |
-
 | `Ctrl+Z` | 撤销 |
-
 | `Ctrl+Shift+Z` | 重做 |
-
 | `Ctrl+B` | 粗体 |
-
 | `Ctrl+I` | 斜体 |
-
 | `Ctrl+U` | 下划线 |
-
 | `Ctrl+Shift+A` | 归档已完成/已取消任务 |
 
   
