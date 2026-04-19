@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   FileText,
   FolderOpen,
@@ -22,6 +22,8 @@ import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
+const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
 function App() {
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -33,6 +35,9 @@ function App() {
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
   const [stickerVisible, setStickerVisible] = useState(false);
+  const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
+  const shellBgClass = isMac ? "bg-editor-bg/70 backdrop-blur-2xl" : "bg-editor-bg";
+  const chromeBgClass = isMac ? "bg-editor-surface/75 backdrop-blur-xl" : "bg-editor-surface";
 
   // Update stats from parser output
   const handleParsed = useCallback((parsed: ParsedDocument) => {
@@ -144,6 +149,16 @@ function App() {
     window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
   }, []);
 
+  useEffect(() => {
+    if (!isMac) return;
+    document.documentElement.classList.add("macos-vibrancy");
+    document.body.classList.add("macos-vibrancy");
+    return () => {
+      document.documentElement.classList.remove("macos-vibrancy");
+      document.body.classList.remove("macos-vibrancy");
+    };
+  }, []);
+
   // Listen for tasks appended via Quick Entry
   useEffect(() => {
     if (!window.electronAPI?.onTaskAppended) return;
@@ -158,13 +173,15 @@ function App() {
   useEffect(() => {
     if (!isEditing) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "s" && !e.shiftKey) {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && key === "s" && !e.shiftKey) {
         e.preventDefault();
         handleSave();
-      } else if (e.ctrlKey && e.shiftKey && e.key === "S") {
+      } else if (mod && e.shiftKey && key === "s") {
         e.preventDefault();
         handleSaveAs();
-      } else if (e.ctrlKey && e.key === "o") {
+      } else if (mod && key === "o") {
         e.preventDefault();
         handleOpen();
       }
@@ -195,14 +212,16 @@ function App() {
   }, []);
 
   // Dispatch a CodeMirror command via a synthetic keyboard event
-  const dispatchEditorKey = useCallback((key: string, ctrl = false, shift = false, alt = false) => {
+  const dispatchEditorKey = useCallback((key: string, mod = false, shift = false, alt = false) => {
     const editor = document.querySelector(".cm-editor .cm-content") as HTMLElement | null;
     if (!editor) return;
     editor.focus();
+    const keyCode = key.length === 1 ? `Key${key.toUpperCase()}` : key;
     const event = new KeyboardEvent("keydown", {
       key,
-      code: `Key${key.toUpperCase()}`,
-      ctrlKey: ctrl,
+      code: keyCode,
+      ctrlKey: mod && !isMac,
+      metaKey: mod && isMac,
       shiftKey: shift,
       altKey: alt,
       bubbles: true,
@@ -215,9 +234,9 @@ function App() {
   // ── Dashboard View ──
   if (!isEditing) {
     return (
-      <div className="flex flex-col h-screen bg-editor-bg">
+      <div className={`flex flex-col h-screen ${shellBgClass}`}>
         {/* Title Bar (minimal, for window drag) */}
-        <div className="titlebar-drag flex items-center h-9 bg-editor-surface border-b border-editor-border px-4 select-none shrink-0">
+        <div className={`titlebar-drag flex items-center h-9 border-b border-editor-border px-4 select-none shrink-0 ${chromeBgClass}`}>
           <div className="flex items-center gap-2 titlebar-no-drag">
             <FileText size={14} className="text-editor-accent" />
             <span className="text-xs font-medium text-editor-text">
@@ -236,9 +255,9 @@ function App() {
 
   // ── Editor View ──
   return (
-    <div className="flex flex-col h-screen bg-editor-bg">
+    <div className={`flex flex-col h-screen ${shellBgClass}`}>
       {/* Title Bar */}
-      <div className="titlebar-drag flex items-center h-9 bg-editor-surface border-b border-editor-border px-4 select-none shrink-0">
+      <div className={`titlebar-drag flex items-center h-9 border-b border-editor-border px-4 select-none shrink-0 ${chromeBgClass}`}>
         <div className="flex items-center gap-2 titlebar-no-drag">
           <FileText size={14} className="text-editor-accent" />
           <span className="text-xs font-medium text-editor-text">
@@ -266,11 +285,11 @@ function App() {
             </button>
             {openMenu === "file" && (
               <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
-                <MenuItem icon={<FilePlus size={14} />} label="New File" shortcut="Ctrl+N" onClick={() => menuAction(handleNew)} />
-                <MenuItem icon={<FolderOpen size={14} />} label="Open File" shortcut="Ctrl+O" onClick={() => menuAction(handleOpen)} />
+                <MenuItem icon={<FilePlus size={14} />} label="New File" shortcut={sc("Ctrl+N", "⌘+N")} onClick={() => menuAction(handleNew)} />
+                <MenuItem icon={<FolderOpen size={14} />} label="Open File" shortcut={sc("Ctrl+O", "⌘+O")} onClick={() => menuAction(handleOpen)} />
                 <MenuDivider />
-                <MenuItem icon={<Save size={14} />} label="Save" shortcut="Ctrl+S" onClick={() => menuAction(handleSave)} />
-                <MenuItem icon={<SaveAll size={14} />} label="Save As..." shortcut="Ctrl+Shift+S" onClick={() => menuAction(handleSaveAs)} />
+                <MenuItem icon={<Save size={14} />} label="Save" shortcut={sc("Ctrl+S", "⌘+S")} onClick={() => menuAction(handleSave)} />
+                <MenuItem icon={<SaveAll size={14} />} label="Save As..." shortcut={sc("Ctrl+Shift+S", "⌘+Shift+S")} onClick={() => menuAction(handleSaveAs)} />
               </div>
             )}
           </div>
@@ -288,15 +307,15 @@ function App() {
             </button>
             {openMenu === "edit" && (
               <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
-                <MenuItem icon={<Undo2 size={14} />} label="Undo" shortcut="Ctrl+Z" onClick={() => menuAction(() => dispatchEditorKey("z", true))} />
-                <MenuItem icon={<Redo2 size={14} />} label="Redo" shortcut="Ctrl+Shift+Z" onClick={() => menuAction(() => dispatchEditorKey("z", true, true))} />
+                <MenuItem icon={<Undo2 size={14} />} label="Undo" shortcut={sc("Ctrl+Z", "⌘+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true))} />
+                <MenuItem icon={<Redo2 size={14} />} label="Redo" shortcut={sc("Ctrl+Shift+Z", "⌘+Shift+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true, true))} />
                 <MenuDivider />
-                <MenuItem icon={<Scissors size={14} />} label="Cut" shortcut="Ctrl+X" onClick={() => menuAction(() => document.execCommand("cut"))} />
-                <MenuItem icon={<Copy size={14} />} label="Copy" shortcut="Ctrl+C" onClick={() => menuAction(() => document.execCommand("copy"))} />
-                <MenuItem icon={<ClipboardPaste size={14} />} label="Paste" shortcut="Ctrl+V" onClick={() => menuAction(() => document.execCommand("paste"))} />
+                <MenuItem icon={<Scissors size={14} />} label="Cut" shortcut={sc("Ctrl+X", "⌘+X")} onClick={() => menuAction(() => document.execCommand("cut"))} />
+                <MenuItem icon={<Copy size={14} />} label="Copy" shortcut={sc("Ctrl+C", "⌘+C")} onClick={() => menuAction(() => document.execCommand("copy"))} />
+                <MenuItem icon={<ClipboardPaste size={14} />} label="Paste" shortcut={sc("Ctrl+V", "⌘+V")} onClick={() => menuAction(() => document.execCommand("paste"))} />
                 <MenuDivider />
-                <MenuItem icon={<Search size={14} />} label="Find" shortcut="Ctrl+F" onClick={() => menuAction(() => dispatchEditorKey("f", true))} />
-                <MenuItem icon={<Replace size={14} />} label="Replace" shortcut="Ctrl+H" onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
+                <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => dispatchEditorKey("f", true))} />
+                <MenuItem icon={<Replace size={14} />} label="Replace" shortcut={sc("Ctrl+H", "⌘+H")} onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
               </div>
             )}
           </div>
@@ -314,11 +333,11 @@ function App() {
             </button>
             {openMenu === "tasks" && (
               <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
-                <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut="Ctrl+Enter" onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
-                <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut="Ctrl+D" onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
+                <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut={sc("Ctrl+Enter", "⌘+Enter")} onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
+                <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut={sc("Ctrl+D", "⌘+D")} onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
                 <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut="Alt+C" onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
                 <MenuDivider />
-                <MenuItem icon={<Archive size={14} />} label="Archive Done" shortcut="Ctrl+Shift+A" onClick={() => menuAction(() => dispatchEditorKey("a", true, true))} />
+                <MenuItem icon={<Archive size={14} />} label="Archive Done" shortcut={sc("Ctrl+Shift+A", "⌘+Shift+A")} onClick={() => menuAction(() => dispatchEditorKey("a", true, true))} />
               </div>
             )}
           </div>
@@ -336,9 +355,9 @@ function App() {
             </button>
             {openMenu === "format" && (
               <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
-                <MenuItem label="Bold" shortcut="Ctrl+B" onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
-                <MenuItem label="Italic" shortcut="Ctrl+I" onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
-                <MenuItem label="Underline" shortcut="Ctrl+U" onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
+                <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
+                <MenuItem label="Italic" shortcut={sc("Ctrl+I", "⌘+I")} onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
+                <MenuItem label="Underline" shortcut={sc("Ctrl+U", "⌘+U")} onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
               </div>
             )}
           </div>
@@ -361,14 +380,14 @@ function App() {
           <button
             onClick={handleOpen}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
-            title="Open File (Ctrl+O)"
+            title={`Open File (${sc("Ctrl+O", "⌘+O")})`}
           >
             <FolderOpen size={14} className="text-editor-subtext" />
           </button>
           <button
             onClick={handleSave}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
-            title="Save (Ctrl+S)"
+            title={`Save (${sc("Ctrl+S", "⌘+S")})`}
           >
             <Save size={14} className="text-editor-subtext" />
           </button>
@@ -381,7 +400,7 @@ function App() {
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center h-6 bg-editor-surface border-t border-editor-border px-4 select-none shrink-0">
+      <div className={`flex items-center h-6 border-t border-editor-border px-4 select-none shrink-0 ${chromeBgClass}`}>
         <div className="flex items-center gap-4 text-[11px]">
           <span className="flex items-center gap-1 text-editor-subtext">
             <CheckSquare size={11} />
@@ -408,13 +427,13 @@ function App() {
               {formatMinutes(stats.estMinutes)} est
             </span>
           )}
-          <span>Ctrl+D done</span>
+          <span>{sc("Ctrl+D", "⌘+D")} done</span>
           <span>Alt+C cancel</span>
-          <span>Ctrl+Enter new</span>
-          <span>Ctrl+B bold</span>
-          <span>Ctrl+I italic</span>
-          <span>Ctrl+U underline</span>
-          <span>Ctrl+Shift+A archive</span>
+          <span>{sc("Ctrl+Enter", "⌘+Enter")} new</span>
+          <span>{sc("Ctrl+B", "⌘+B")} bold</span>
+          <span>{sc("Ctrl+I", "⌘+I")} italic</span>
+          <span>{sc("Ctrl+U", "⌘+U")} underline</span>
+          <span>{sc("Ctrl+Shift+A", "⌘+Shift+A")} archive</span>
         </div>
       </div>
     </div>
@@ -429,7 +448,7 @@ function MenuItem({
   shortcut,
   onClick,
 }: {
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   label: string;
   shortcut?: string;
   onClick: () => void;
