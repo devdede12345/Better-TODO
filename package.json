@@ -49,7 +49,8 @@
     "copyright": "Copyright © 2025",
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "build/**/*"
     ],
     "directories": {
       "output": "release"

@@ -31,5 +31,18 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_event, visible) => cb(visible);
     electron.ipcRenderer.on("sticker:visibility", handler);
     return () => electron.ipcRenderer.removeListener("sticker:visibility", handler);
+  },
+  // Quick Entry
+  quickEntrySubmit: (text) => electron.ipcRenderer.invoke("quickentry:submit", text),
+  quickEntryHide: () => electron.ipcRenderer.invoke("quickentry:hide"),
+  onQuickEntryShow: (cb) => {
+    electron.ipcRenderer.on("quickentry:show", () => cb());
+    return () => electron.ipcRenderer.removeAllListeners("quickentry:show");
+  },
+  // Main window listener for appended tasks
+  onTaskAppended: (cb) => {
+    const handler = (_event, task) => cb(task);
+    electron.ipcRenderer.on("editor:taskAppended", handler);
+    return () => electron.ipcRenderer.removeListener("editor:taskAppended", handler);
   }
 });

@@ -41,6 +41,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, "index.html"),
         sticker: path.resolve(__dirname, "sticker.html"),
+        quickentry: path.resolve(__dirname, "quickentry.html"),
       },
     },
   },
