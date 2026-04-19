@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveFileAs: (content: string) => ipcRenderer.invoke("file:saveAs", content),
   getDefaultFile: () => ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => ipcRenderer.invoke("file:getCurrentPath"),
+  getNextReminder: () => ipcRenderer.invoke("reminder:getNext"),
 
   // Sticker operations
   stickerToggle: () => ipcRenderer.invoke("sticker:toggle"),

@@ -2,22 +2,22 @@ import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 
-// One Dark Pro / Catppuccin Mocha inspired palette
+// Theme tokens driven by CSS variables so editor follows global light/dark mode.
 const colors = {
-  bg: "#1e1e2e",
-  fg: "#cdd6f4",
-  comment: "#6c7086",
-  green: "#a6e3a1",
-  red: "#f38ba8",
-  yellow: "#f9e2af",
-  blue: "#89b4fa",
-  purple: "#cba6f7",
-  cyan: "#94e2d5",
-  orange: "#fab387",
-  pink: "#f5c2e7",
-  surface0: "#313244",
-  surface1: "#45475a",
-  overlay: "#585b70",
+  bg: "rgb(var(--editor-bg))",
+  fg: "rgb(var(--editor-text))",
+  comment: "rgb(var(--editor-muted))",
+  green: "rgb(var(--editor-green))",
+  red: "rgb(var(--editor-red))",
+  yellow: "rgb(var(--editor-yellow))",
+  blue: "rgb(var(--editor-accent))",
+  purple: "rgb(var(--editor-mauve))",
+  cyan: "rgb(var(--editor-teal))",
+  orange: "rgb(var(--editor-peach))",
+  pink: "rgb(var(--editor-pink))",
+  surface0: "rgb(var(--editor-border))",
+  surface1: "rgb(var(--editor-overlay))",
+  overlay: "rgb(var(--editor-muted))",
 };
 
 export const todoEditorTheme = EditorView.theme(
@@ -34,10 +34,10 @@ export const todoEditorTheme = EditorView.theme(
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
       {
-        backgroundColor: "rgba(137, 180, 250, 0.15)",
+        backgroundColor: "rgb(var(--editor-accent) / 0.18)",
       },
     ".cm-panels": {
-      backgroundColor: "#181825",
+      backgroundColor: "rgb(var(--editor-surface))",
       color: colors.fg,
     },
     ".cm-panels.cm-panels-top": {
@@ -47,20 +47,20 @@ export const todoEditorTheme = EditorView.theme(
       borderTop: `1px solid ${colors.surface0}`,
     },
     ".cm-searchMatch": {
-      backgroundColor: "rgba(249, 226, 175, 0.3)",
-      outline: "1px solid rgba(249, 226, 175, 0.5)",
+      backgroundColor: "rgb(var(--editor-yellow) / 0.28)",
+      outline: "1px solid rgb(var(--editor-yellow) / 0.5)",
     },
     ".cm-searchMatch.cm-searchMatch-selected": {
-      backgroundColor: "rgba(249, 226, 175, 0.5)",
+      backgroundColor: "rgb(var(--editor-yellow) / 0.46)",
     },
     ".cm-activeLine": {
-      backgroundColor: "rgba(24, 24, 37, 0.5)",
+      backgroundColor: "rgb(var(--editor-surface) / 0.55)",
     },
     ".cm-selectionMatch": {
-      backgroundColor: "rgba(137, 180, 250, 0.1)",
+      backgroundColor: "rgb(var(--editor-accent) / 0.12)",
     },
     "&.cm-focused .cm-matchingBracket, &.cm-focused .cm-nonmatchingBracket": {
-      backgroundColor: "rgba(137, 180, 250, 0.2)",
+      backgroundColor: "rgb(var(--editor-accent) / 0.22)",
     },
     ".cm-gutters": {
       backgroundColor: colors.bg,
@@ -69,7 +69,7 @@ export const todoEditorTheme = EditorView.theme(
       borderRight: `1px solid ${colors.surface0}`,
     },
     ".cm-activeLineGutter": {
-      backgroundColor: "#181825",
+      backgroundColor: "rgb(var(--editor-surface))",
       color: colors.fg,
     },
     ".cm-foldPlaceholder": {
@@ -79,7 +79,7 @@ export const todoEditorTheme = EditorView.theme(
     },
     ".cm-tooltip": {
       border: `1px solid ${colors.surface0}`,
-      backgroundColor: "#181825",
+      backgroundColor: "rgb(var(--editor-surface))",
       color: colors.fg,
     },
     ".cm-tooltip .cm-tooltip-arrow:before": {
@@ -87,8 +87,8 @@ export const todoEditorTheme = EditorView.theme(
       borderBottomColor: colors.surface0,
     },
     ".cm-tooltip .cm-tooltip-arrow:after": {
-      borderTopColor: "#181825",
-      borderBottomColor: "#181825",
+      borderTopColor: "rgb(var(--editor-surface))",
+      borderBottomColor: "rgb(var(--editor-surface))",
     },
     ".cm-tooltip-autocomplete": {
       "& > ul > li[aria-selected]": {
@@ -130,7 +130,7 @@ export const todoEditorTheme = EditorView.theme(
     ".tok-todo-tag-low": {
       color: colors.comment,
       fontStyle: "italic",
-      backgroundColor: "rgba(108, 112, 134, 0.15)",
+      backgroundColor: "rgb(var(--editor-muted) / 0.15)",
       borderRadius: "3px",
       padding: "0 4px",
     },
@@ -178,8 +178,7 @@ export const todoEditorTheme = EditorView.theme(
       color: colors.blue,
       textDecoration: "underline",
     },
-  },
-  { dark: true }
+  }
 );
 
 const highlightStyle = HighlightStyle.define([

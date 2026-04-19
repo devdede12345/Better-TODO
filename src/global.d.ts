@@ -5,6 +5,14 @@ interface FileResult {
   content: string;
 }
 
+interface ReminderPreview {
+  id: string;
+  projectName: string;
+  taskText: string;
+  remainingSeconds: number;
+  dueAt: number;
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -14,6 +22,7 @@ declare global {
       saveFileAs: (content: string) => Promise<string | null>;
       getDefaultFile: () => Promise<FileResult>;
       getCurrentPath: () => Promise<string | null>;
+      getNextReminder: () => Promise<ReminderPreview | null>;
 
       // Sticker
       stickerToggle: () => Promise<boolean>;

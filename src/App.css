@@ -2,6 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --app-bg: #1e1e2e;
+  --app-text: #cdd6f4;
+  --editor-bg: 30 30 46;
+  --editor-surface: 24 24 37;
+  --editor-overlay: 17 17 27;
+  --editor-border: 49 50 68;
+  --editor-text: 205 214 244;
+  --editor-subtext: 166 173 200;
+  --editor-muted: 88 91 112;
+  --editor-accent: 137 180 250;
+  --editor-green: 166 227 161;
+  --editor-red: 243 139 168;
+  --editor-yellow: 249 226 175;
+  --editor-peach: 250 179 135;
+  --editor-mauve: 203 166 247;
+  --editor-teal: 148 226 213;
+  --editor-pink: 245 194 231;
+}
+
+html.theme-light,
+body.theme-light {
+  --app-bg: #f5f7fb;
+  --app-text: #1f2937;
+  --editor-bg: 245 247 251;
+  --editor-surface: 255 255 255;
+  --editor-overlay: 238 242 255;
+  --editor-border: 203 213 225;
+  --editor-text: 31 41 55;
+  --editor-subtext: 71 85 105;
+  --editor-muted: 100 116 139;
+  --editor-accent: 37 99 235;
+  --editor-green: 22 163 74;
+  --editor-red: 220 38 38;
+  --editor-yellow: 202 138 4;
+  --editor-peach: 234 88 12;
+  --editor-mauve: 147 51 234;
+  --editor-teal: 13 148 136;
+  --editor-pink: 219 39 119;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -11,8 +52,8 @@
 html, body, #root {
   height: 100%;
   overflow: hidden;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: var(--app-bg);
+  color: var(--app-text);
   font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
 }
 
@@ -20,6 +61,16 @@ html.macos-vibrancy,
 body.macos-vibrancy,
 html.macos-vibrancy #root {
   background: transparent;
+}
+
+html.theme-light ::-webkit-scrollbar-thumb,
+body.theme-light ::-webkit-scrollbar-thumb {
+  background: #a0aec0;
+}
+
+html.theme-light ::-webkit-scrollbar-thumb:hover,
+body.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: #718096;
 }
 
 /* Scrollbar styling */
@@ -67,53 +118,53 @@ html.macos-vibrancy #root {
 }
 
 .cm-editor .cm-gutters {
-  background: #1e1e2e;
-  border-right: 1px solid #313244;
-  color: #585b70;
+  background: rgb(var(--editor-bg));
+  border-right: 1px solid rgb(var(--editor-border));
+  color: rgb(var(--editor-muted));
   min-width: 48px;
 }
 
 .cm-editor .cm-activeLineGutter {
-  background: #181825;
-  color: #cdd6f4;
+  background: rgb(var(--editor-surface));
+  color: rgb(var(--editor-text));
 }
 
 .cm-editor .cm-activeLine {
-  background: rgba(24, 24, 37, 0.5);
+  background: rgb(var(--editor-surface) / 0.55);
 }
 
 .cm-editor .cm-cursor {
-  border-left-color: #89b4fa;
+  border-left-color: rgb(var(--editor-accent));
   border-left-width: 2px;
 }
 
 .cm-editor .cm-selectionBackground,
 .cm-editor.cm-focused .cm-selectionBackground {
-  background: rgba(137, 180, 250, 0.15) !important;
+  background: rgb(var(--editor-accent) / 0.2) !important;
 }
 
 .cm-editor .cm-matchingBracket {
-  background: rgba(137, 180, 250, 0.2);
-  outline: 1px solid rgba(137, 180, 250, 0.4);
+  background: rgb(var(--editor-accent) / 0.24);
+  outline: 1px solid rgb(var(--editor-accent) / 0.45);
 }
 
 .cm-editor .cm-searchMatch {
-  background: rgba(249, 226, 175, 0.3);
-  outline: 1px solid rgba(249, 226, 175, 0.5);
+  background: rgb(var(--editor-yellow) / 0.3);
+  outline: 1px solid rgb(var(--editor-yellow) / 0.5);
 }
 
 .cm-editor .cm-searchMatch.cm-searchMatch-selected {
-  background: rgba(249, 226, 175, 0.5);
+  background: rgb(var(--editor-yellow) / 0.48);
 }
 
 /* Selection highlight */
 ::selection {
-  background: rgba(137, 180, 250, 0.2);
+  background: rgb(var(--editor-accent) / 0.24);
 }
 
 /* KaTeX math widget overrides for dark theme */
 .cm-math-widget .katex {
-  color: #89b4fa;
+  color: rgb(var(--editor-accent));
   font-size: 1em;
 }
 
@@ -124,5 +175,5 @@ html.macos-vibrancy #root {
 .cm-math-widget .katex .mclose,
 .cm-math-widget .katex .mpunct,
 .cm-math-widget .katex .minner {
-  color: #89b4fa;
+  color: rgb(var(--editor-accent));
 }

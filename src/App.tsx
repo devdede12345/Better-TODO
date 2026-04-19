@@ -3,6 +3,10 @@ import {
   FileText,
   FolderOpen,
   Save,
+  Plus,
+  Sun,
+  Moon,
+  Monitor,
   CheckSquare,
   Square,
   XSquare,
@@ -24,6 +28,14 @@ import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 
+interface ReminderPreview {
+  id: string;
+  projectName: string;
+  taskText: string;
+  remainingSeconds: number;
+  dueAt: number;
+}
+
 function App() {
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -35,9 +47,33 @@ function App() {
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
   const [stickerVisible, setStickerVisible] = useState(false);
+  const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
+  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">(() => {
+    const saved = localStorage.getItem("theme-mode");
+    return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+  });
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
-  const shellBgClass = isMac ? "bg-editor-bg/70 backdrop-blur-2xl" : "bg-editor-bg";
-  const chromeBgClass = isMac ? "bg-editor-surface/75 backdrop-blur-xl" : "bg-editor-surface";
+  const shellBgClass = isMac
+    ? resolvedTheme === "light"
+      ? "bg-white/70 backdrop-blur-3xl"
+      : "bg-editor-bg/60 backdrop-blur-3xl"
+    : resolvedTheme === "light"
+      ? "bg-[#f5f7fb]"
+      : "bg-editor-bg";
+  const chromeBgClass = isMac
+    ? resolvedTheme === "light"
+      ? "bg-white/75 backdrop-blur-2xl"
+      : "bg-editor-surface/70 backdrop-blur-2xl"
+    : resolvedTheme === "light"
+      ? "bg-[#eef2ff]"
+      : "bg-editor-surface";
+  const topBarHeightClass = isMac ? "h-11" : "h-9";
+  const menuPanelClass = resolvedTheme === "light"
+    ? "bg-white/95 backdrop-blur-2xl border-slate-300/80"
+    : isMac
+      ? "bg-editor-surface/75 backdrop-blur-2xl border-editor-border/80"
+      : "bg-editor-surface border-editor-border";
 
   // Update stats from parser output
   const handleParsed = useCallback((parsed: ParsedDocument) => {
@@ -144,6 +180,21 @@ function App() {
     return cleanup;
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      if (!window.electronAPI?.getNextReminder) return;
+      const reminder = await window.electronAPI.getNextReminder();
+      if (alive) setNextReminder(reminder);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
   // Check initial sticker state
   useEffect(() => {
     window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
@@ -158,6 +209,30 @@ function App() {
       document.body.classList.remove("macos-vibrancy");
     };
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("theme-mode", themeMode);
+  }, [themeMode]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const dark = themeMode === "system" ? media.matches : themeMode === "dark";
+      const next = dark ? "theme-dark" : "theme-light";
+      const prev = dark ? "theme-light" : "theme-dark";
+      document.documentElement.classList.remove(prev);
+      document.body.classList.remove(prev);
+      document.documentElement.classList.add(next);
+      document.body.classList.add(next);
+      setResolvedTheme(dark ? "dark" : "light");
+    };
+
+    applyTheme();
+
+    const onChange = () => applyTheme();
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [themeMode]);
 
   // Listen for tasks appended via Quick Entry
   useEffect(() => {
@@ -211,6 +286,29 @@ function App() {
     fn();
   }, []);
 
+  const cycleThemeMode = useCallback(() => {
+    setThemeMode((prev) => (prev === "system" ? "light" : prev === "light" ? "dark" : "system"));
+  }, []);
+
+  const formatCountdown = useCallback((totalSeconds: number) => {
+    const safe = Math.max(0, totalSeconds);
+    const h = Math.floor(safe / 3600);
+    const m = Math.floor((safe % 3600) / 60);
+    const s = safe % 60;
+    if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }, []);
+
+  const formatDueAt = useCallback((ts: number) => {
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return `${y}/${mo}/${day} ${h}:${m}`;
+  }, []);
+
   // Dispatch a CodeMirror command via a synthetic keyboard event
   const dispatchEditorKey = useCallback((key: string, mod = false, shift = false, alt = false) => {
     const editor = document.querySelector(".cm-editor .cm-content") as HTMLElement | null;
@@ -236,13 +334,22 @@ function App() {
     return (
       <div className={`flex flex-col h-screen ${shellBgClass}`}>
         {/* Title Bar (minimal, for window drag) */}
-        <div className={`titlebar-drag flex items-center h-9 border-b border-editor-border px-4 select-none shrink-0 ${chromeBgClass}`}>
+        <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
+          {isMac && <div className="w-[78px] shrink-0" />}
           <div className="flex items-center gap-2 titlebar-no-drag">
             <FileText size={14} className="text-editor-accent" />
             <span className="text-xs font-medium text-editor-text">
               Better TODO
             </span>
           </div>
+          <div className="flex-1" />
+          <button
+            onClick={cycleThemeMode}
+            className="titlebar-no-drag p-1.5 rounded hover:bg-editor-border transition-colors"
+            title={`Theme: ${themeMode}`}
+          >
+            {themeMode === "system" ? <Monitor size={14} className="text-editor-subtext" /> : themeMode === "light" ? <Sun size={14} className="text-editor-subtext" /> : <Moon size={14} className="text-editor-subtext" />}
+          </button>
         </div>
 
         {/* Dashboard */}
@@ -257,26 +364,32 @@ function App() {
   return (
     <div className={`flex flex-col h-screen ${shellBgClass}`}>
       {/* Title Bar */}
-      <div className={`titlebar-drag flex items-center h-9 border-b border-editor-border px-4 select-none shrink-0 ${chromeBgClass}`}>
-        <div className="flex items-center gap-2 titlebar-no-drag">
-          <FileText size={14} className="text-editor-accent" />
-          <span className="text-xs font-medium text-editor-text">
-            Better TODO
-          </span>
-          <span className="text-xs text-editor-muted mx-1">|</span>
-          <span className="text-xs text-editor-subtext">
-            {fileName}
-            {isDirty && <span className="text-editor-yellow ml-1">●</span>}
-          </span>
-        </div>
+      <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
+        {isMac && <div className="w-[78px] shrink-0" />}
+        <div className="flex items-center min-w-0">
+          <div className="flex items-center gap-2 titlebar-no-drag">
+            <FileText size={14} className="text-editor-accent" />
+            <span className="text-xs font-medium text-editor-text">
+              Better TODO
+            </span>
+            <span className="text-xs text-editor-muted mx-1">|</span>
+            <span className="text-xs text-editor-subtext">
+              {fileName}
+              {isDirty && <span className="text-editor-yellow ml-1">●</span>}
+            </span>
+          </div>
 
-        {/* ── Menu Bar ── */}
-        <div ref={menuBarRef} className="flex items-center ml-4 titlebar-no-drag relative">
+          {/* ── Menu Bar ── */}
+          <div
+            ref={menuBarRef}
+            onMouseLeave={() => setOpenMenu(null)}
+            className="flex items-center ml-4 titlebar-no-drag relative z-50"
+          >
           {/* File Menu */}
           <div className="relative">
             <button
               onClick={() => setOpenMenu(openMenu === "file" ? null : "file")}
-              onMouseEnter={() => openMenu && setOpenMenu("file")}
+              onMouseEnter={() => setOpenMenu("file")}
               className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
                 openMenu === "file" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
               }`}
@@ -284,7 +397,7 @@ function App() {
               File
             </button>
             {openMenu === "file" && (
-              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<FilePlus size={14} />} label="New File" shortcut={sc("Ctrl+N", "⌘+N")} onClick={() => menuAction(handleNew)} />
                 <MenuItem icon={<FolderOpen size={14} />} label="Open File" shortcut={sc("Ctrl+O", "⌘+O")} onClick={() => menuAction(handleOpen)} />
                 <MenuDivider />
@@ -298,7 +411,7 @@ function App() {
           <div className="relative">
             <button
               onClick={() => setOpenMenu(openMenu === "edit" ? null : "edit")}
-              onMouseEnter={() => openMenu && setOpenMenu("edit")}
+              onMouseEnter={() => setOpenMenu("edit")}
               className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
                 openMenu === "edit" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
               }`}
@@ -306,7 +419,7 @@ function App() {
               Edit
             </button>
             {openMenu === "edit" && (
-              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<Undo2 size={14} />} label="Undo" shortcut={sc("Ctrl+Z", "⌘+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true))} />
                 <MenuItem icon={<Redo2 size={14} />} label="Redo" shortcut={sc("Ctrl+Shift+Z", "⌘+Shift+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true, true))} />
                 <MenuDivider />
@@ -324,7 +437,7 @@ function App() {
           <div className="relative">
             <button
               onClick={() => setOpenMenu(openMenu === "tasks" ? null : "tasks")}
-              onMouseEnter={() => openMenu && setOpenMenu("tasks")}
+              onMouseEnter={() => setOpenMenu("tasks")}
               className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
                 openMenu === "tasks" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
               }`}
@@ -332,10 +445,10 @@ function App() {
               Tasks
             </button>
             {openMenu === "tasks" && (
-              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut={sc("Ctrl+Enter", "⌘+Enter")} onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
                 <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut={sc("Ctrl+D", "⌘+D")} onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
-                <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut="Alt+C" onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
+                <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut={sc("Alt+C", "⌥+C")} onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
                 <MenuDivider />
                 <MenuItem icon={<Archive size={14} />} label="Archive Done" shortcut={sc("Ctrl+Shift+A", "⌘+Shift+A")} onClick={() => menuAction(() => dispatchEditorKey("a", true, true))} />
               </div>
@@ -346,7 +459,7 @@ function App() {
           <div className="relative">
             <button
               onClick={() => setOpenMenu(openMenu === "format" ? null : "format")}
-              onMouseEnter={() => openMenu && setOpenMenu("format")}
+              onMouseEnter={() => setOpenMenu("format")}
               className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
                 openMenu === "format" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
               }`}
@@ -354,7 +467,7 @@ function App() {
               Format
             </button>
             {openMenu === "format" && (
-              <div className="absolute top-full left-0 mt-0.5 w-56 bg-editor-surface border border-editor-border rounded-md shadow-xl z-50 py-1">
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
                 <MenuItem label="Italic" shortcut={sc("Ctrl+I", "⌘+I")} onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
                 <MenuItem label="Underline" shortcut={sc("Ctrl+U", "⌘+U")} onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
@@ -373,10 +486,35 @@ function App() {
             Sticker
           </button>
         </div>
+        </div>
+
+        <div className="titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border bg-editor-overlay/60">
+          <span className="text-[10px] text-editor-muted uppercase tracking-wide">Next</span>
+          <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}>
+            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
+          </span>
+          <span className="text-[11px] font-medium text-editor-accent tabular-nums">
+            {nextReminder ? formatCountdown(nextReminder.remainingSeconds) : "--:--"}
+          </span>
+        </div>
 
         <div className="flex-1" />
 
         <div className="flex items-center gap-1 titlebar-no-drag">
+          <button
+            onClick={cycleThemeMode}
+            className="p-1.5 rounded hover:bg-editor-border transition-colors"
+            title={`Theme: ${themeMode}`}
+          >
+            {themeMode === "system" ? <Monitor size={14} className="text-editor-subtext" /> : themeMode === "light" ? <Sun size={14} className="text-editor-subtext" /> : <Moon size={14} className="text-editor-subtext" />}
+          </button>
+          <button
+            onClick={() => dispatchEditorKey("Enter", true)}
+            className="p-1.5 rounded hover:bg-editor-border transition-colors"
+            title={`Add Task (${sc("Ctrl+Enter", "⌘+Enter")})`}
+          >
+            <Plus size={14} className="text-editor-subtext" />
+          </button>
           <button
             onClick={handleOpen}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
@@ -428,7 +566,7 @@ function App() {
             </span>
           )}
           <span>{sc("Ctrl+D", "⌘+D")} done</span>
-          <span>Alt+C cancel</span>
+          <span>{sc("Alt+C", "⌥+C")} cancel</span>
           <span>{sc("Ctrl+Enter", "⌘+Enter")} new</span>
           <span>{sc("Ctrl+B", "⌘+B")} bold</span>
           <span>{sc("Ctrl+I", "⌘+I")} italic</span>

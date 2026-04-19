@@ -25,3 +25,33 @@ body {
   border-radius: 12px;
   overflow: hidden;
 }
+
+html.theme-light .quickentry-root,
+body.theme-light .quickentry-root {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+html.theme-light .quickentry-root .border-white\/10,
+body.theme-light .quickentry-root .border-white\/10 {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+html.theme-light .quickentry-root .text-white\/70,
+html.theme-light .quickentry-root .text-white\/90,
+body.theme-light .quickentry-root .text-white\/70,
+body.theme-light .quickentry-root .text-white\/90 {
+  color: rgba(31, 41, 55, 0.88);
+}
+
+html.theme-light .quickentry-root .text-white\/40,
+html.theme-light .quickentry-root .text-white\/30,
+body.theme-light .quickentry-root .text-white\/40,
+body.theme-light .quickentry-root .text-white\/30 {
+  color: rgba(100, 116, 139, 0.95);
+}
+
+html.theme-light .quickentry-root .placeholder\:text-white\/20::placeholder,
+body.theme-light .quickentry-root .placeholder\:text-white\/20::placeholder {
+  color: rgba(100, 116, 139, 0.55);
+}

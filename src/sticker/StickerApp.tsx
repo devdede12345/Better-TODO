@@ -85,6 +85,24 @@ export default function StickerApp() {
     window.electronAPI?.stickerGetLocked?.().then((l) => setLocked(l));
   }, []);
 
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = (dark: boolean) => {
+      const next = dark ? "theme-dark" : "theme-light";
+      const prev = dark ? "theme-light" : "theme-dark";
+      document.documentElement.classList.remove(prev);
+      document.body.classList.remove(prev);
+      document.documentElement.classList.add(next);
+      document.body.classList.add(next);
+    };
+
+    applyTheme(media.matches);
+
+    const onChange = (e: MediaQueryListEvent) => applyTheme(e.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
   // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
@@ -136,7 +154,7 @@ export default function StickerApp() {
       .replace(/@lasted\([^)]*\)/g, "")
       .replace(/@est\([^)]*\)/g, "")
       .replace(/@due\([^)]*\)/g, "")
-      .replace(/@\d+[hm]\d*[hm]?/g, "")
+      .replace(/@\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}/g, "")
       .trim();
   };
 
@@ -157,16 +175,16 @@ export default function StickerApp() {
   };
 
   return (
-    <div className={`sticker-root ${locked ? "locked" : ""}`}>
+    <div className="sticker-root">
       {/* Header / drag handle */}
-      <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b border-white/10">
+      <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b sticker-border">
         <div className="flex items-center gap-1.5 min-w-0">
-          <GripVertical size={12} className="text-white/30 flex-shrink-0" />
-          <span className="text-[11px] font-semibold text-white/80 truncate" title={fileName}>
+          <GripVertical size={12} className="sticker-icon-muted flex-shrink-0" />
+          <span className="sticker-title text-[11px] font-semibold truncate" title={fileName}>
             {fileName}
           </span>
           {pendingCount > 0 && (
-            <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 rounded-full flex-shrink-0">
+            <span className="sticker-badge text-[10px] px-1.5 rounded-full flex-shrink-0">
               {pendingCount}
             </span>
           )}
@@ -175,24 +193,24 @@ export default function StickerApp() {
           <div className="relative flex-shrink-0 sticker-handle-nodrag ml-1" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
-                menuOpen ? "bg-white/10 text-white/90" : "text-white/40 hover:text-white/80 hover:bg-white/5"
+              className={`h-5 px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                menuOpen ? "sticker-menu-button-active" : "sticker-menu-button"
               }`}
             >
               File
             </button>
             {menuOpen && (
-              <div className="absolute top-full left-0 mt-0.5 w-44 bg-[#1e1e2e] border border-white/10 rounded-md shadow-xl z-50 py-1">
+              <div className="absolute top-full left-0 mt-0.5 w-44 sticker-menu-panel rounded-md shadow-xl z-50 py-1">
                 <button
                   onClick={handleOpenFile}
-                  className="flex items-center w-full px-3 py-1.5 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors gap-2"
+                  className="sticker-menu-item flex items-center w-full px-3 py-1.5 text-[11px] transition-colors gap-2"
                 >
                   <FolderOpen size={12} />
                   <span>Open File</span>
                 </button>
                 <button
                   onClick={handleReload}
-                  className="flex items-center w-full px-3 py-1.5 text-[11px] text-white/60 hover:text-white hover:bg-white/10 transition-colors gap-2"
+                  className="sticker-menu-item flex items-center w-full px-3 py-1.5 text-[11px] transition-colors gap-2"
                 >
                   <RefreshCw size={12} />
                   <span>Reload</span>
@@ -204,7 +222,7 @@ export default function StickerApp() {
           {/* Back to editor */}
           <button
             onClick={handleBack}
-            className="flex-shrink-0 sticker-handle-nodrag px-1.5 py-0.5 text-[10px] rounded text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
+            className="h-5 flex-shrink-0 sticker-handle-nodrag px-1.5 py-0.5 text-[10px] rounded sticker-menu-button transition-colors"
             title="Back to editor"
           >
             Back
@@ -214,13 +232,13 @@ export default function StickerApp() {
         <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
           <button
             onClick={handleToggleLock}
-            className="p-1 rounded hover:bg-white/10 transition-colors"
+            className="p-1 rounded sticker-icon-button transition-colors"
             title={locked ? "Unlock (allow interaction)" : "Lock (click-through)"}
           >
             {locked ? (
               <Lock size={12} className="text-yellow-400" />
             ) : (
-              <Unlock size={12} className="text-white/50" />
+              <Unlock size={12} className="sticker-icon-muted" />
             )}
           </button>
           <button
@@ -228,15 +246,15 @@ export default function StickerApp() {
             className="p-1 rounded hover:bg-red-500/30 transition-colors"
             title="Close sticker"
           >
-            <X size={12} className="text-white/50" />
+            <X size={12} className="sticker-icon-muted" />
           </button>
         </div>
       </div>
 
       {/* Task list */}
-      <div className="sticker-body flex-1 overflow-y-auto px-3 py-2">
+      <div className={`sticker-body flex-1 overflow-y-auto px-3 py-2 ${locked ? "locked" : ""}`}>
         {lines.length === 0 && (
-          <div className="text-[11px] text-white/30 text-center py-8">
+          <div className="text-[11px] sticker-empty text-center py-8">
             No tasks loaded
           </div>
         )}
@@ -261,14 +279,14 @@ export default function StickerApp() {
               >
                 {markerChar(task.state)}
               </span>
-              <span className="text-white/80">{cleanText(task.text)}</span>
+              <span className="sticker-task-text">{cleanText(task.text)}</span>
             </div>
           );
         })}
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/10 text-[10px] text-white/30">
+      <div className="flex items-center justify-between px-3 py-1.5 border-t sticker-border text-[10px] sticker-footer">
         <span>{pendingCount} pending</span>
         {locked && <span className="text-yellow-400/60">Locked</span>}
       </div>
