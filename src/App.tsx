@@ -287,6 +287,10 @@ function App() {
     fn();
   }, []);
 
+  const createNewTask = useCallback(() => {
+    (window as any).__todoEditorCreateNewTask?.();
+  }, []);
+
   const cycleThemeMode = useCallback(() => {
     setThemeMode((prev) => (prev === "system" ? "light" : prev === "light" ? "dark" : "system"));
   }, []);
@@ -454,7 +458,7 @@ function App() {
               <>
                 <div className="absolute top-full left-0 h-2 w-56 z-[89]" />
                 <div className={`absolute top-full left-0 mt-2 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
-                <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut={sc("Ctrl+Enter", "⌘+Enter")} onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
+                <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut={sc("Ctrl+Enter", "⌘+Enter")} onClick={() => menuAction(createNewTask)} />
                 <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut={sc("Ctrl+D", "⌘+D")} onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
                 <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut={sc("Alt+C", "⌥+C")} onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
                 <MenuDivider />
@@ -521,7 +525,7 @@ function App() {
             {themeMode === "system" ? <Monitor size={14} className="text-editor-subtext" /> : themeMode === "light" ? <Sun size={14} className="text-editor-subtext" /> : <Moon size={14} className="text-editor-subtext" />}
           </button>
           <button
-            onClick={() => dispatchEditorKey("Enter", true)}
+            onClick={createNewTask}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
             title={`Add Task (${sc("Ctrl+Enter", "⌘+Enter")})`}
           >

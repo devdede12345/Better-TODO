@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Lock, Unlock, X, GripVertical, FolderOpen, RefreshCw, Undo2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Lock, Unlock, X, GripVertical } from "lucide-react";
 
 interface StickerTask {
   text: string;
@@ -46,8 +46,6 @@ export default function StickerApp() {
   const [locked, setLocked] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [fileName, setFileName] = useState<string>("No file");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Apply parsed content
   const applyContent = useCallback((content: string, name?: string) => {
@@ -103,18 +101,6 @@ export default function StickerApp() {
     return () => media.removeEventListener("change", onChange);
   }, []);
 
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
-
   const handleToggleLock = useCallback(async () => {
     if (!window.electronAPI) return;
     const newLocked = await window.electronAPI.stickerSetLocked(!locked);
@@ -123,26 +109,6 @@ export default function StickerApp() {
 
   const handleClose = useCallback(() => {
     window.electronAPI?.stickerToggle();
-  }, []);
-
-  const handleOpenFile = useCallback(async () => {
-    setMenuOpen(false);
-    if (!window.electronAPI) return;
-    const result = await window.electronAPI.openFile();
-    if (result) {
-      applyContent(result.content, result.path.split(/[\\/]/).pop() || "Untitled");
-    }
-  }, [applyContent]);
-
-  const handleReload = useCallback(async () => {
-    setMenuOpen(false);
-    if (!window.electronAPI) return;
-    const result = await window.electronAPI.stickerRequestContent();
-    if (result) applyContent(result.content, result.fileName);
-  }, [applyContent]);
-
-  const handleBack = useCallback(() => {
-    window.electronAPI?.stickerBack();
   }, []);
 
   // Strip tag annotations for cleaner display
@@ -192,46 +158,9 @@ export default function StickerApp() {
             </span>
           )}
 
-          {/* File menu (inline) */}
-          <div className="relative flex-shrink-0 sticker-handle-nodrag ml-1" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className={`h-5 px-1.5 py-0.5 text-[10px] rounded transition-colors ${
-                menuOpen ? "sticker-menu-button-active" : "sticker-menu-button"
-              }`}
-            >
-              File
-            </button>
-            {menuOpen && (
-              <div className="absolute top-full left-0 mt-0.5 w-44 sticker-menu-panel rounded-md shadow-xl z-50 py-1">
-                <button
-                  onClick={handleOpenFile}
-                  className="sticker-menu-item flex items-center w-full px-3 py-1.5 text-[11px] transition-colors gap-2"
-                >
-                  <FolderOpen size={12} />
-                  <span>Open File</span>
-                </button>
-                <button
-                  onClick={handleReload}
-                  className="sticker-menu-item flex items-center w-full px-3 py-1.5 text-[11px] transition-colors gap-2"
-                >
-                  <RefreshCw size={12} />
-                  <span>Reload</span>
-                </button>
-              </div>
-            )}
-          </div>
-
         </div>
 
         <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
-          <button
-            onClick={handleBack}
-            className="h-5 px-1.5 py-0.5 text-[10px] rounded sticker-menu-button transition-colors"
-            title="Back to editor"
-          >
-            Back
-          </button>
           <button
             onClick={handleToggleLock}
             className="p-1 rounded sticker-icon-button transition-colors"
