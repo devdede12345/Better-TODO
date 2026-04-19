@@ -291,7 +291,7 @@ function App() {
     return (
       <div className={`flex flex-col h-screen ${shellBgClass}`}>
         {/* Title Bar (minimal, for window drag) */}
-        <div className={`titlebar-drag flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
+        <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
           {isMac && <div className="w-[78px] shrink-0" />}
           <div className="flex items-center gap-2 titlebar-no-drag">
             <FileText size={14} className="text-editor-accent" />
@@ -321,7 +321,7 @@ function App() {
   return (
     <div className={`flex flex-col h-screen ${shellBgClass}`}>
       {/* Title Bar */}
-      <div className={`titlebar-drag flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
+      <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
         {isMac && <div className="w-[78px] shrink-0" />}
         <div className="flex items-center min-w-0">
           <div className="flex items-center gap-2 titlebar-no-drag">
@@ -340,7 +340,7 @@ function App() {
           <div
             ref={menuBarRef}
             onMouseLeave={() => setOpenMenu(null)}
-            className="flex items-center ml-4 titlebar-no-drag relative"
+            className="flex items-center ml-4 titlebar-no-drag relative z-50"
           >
           {/* File Menu */}
           <div className="relative">
@@ -354,7 +354,7 @@ function App() {
               File
             </button>
             {openMenu === "file" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-50 py-1 ${menuPanelClass}`}>
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<FilePlus size={14} />} label="New File" shortcut={sc("Ctrl+N", "⌘+N")} onClick={() => menuAction(handleNew)} />
                 <MenuItem icon={<FolderOpen size={14} />} label="Open File" shortcut={sc("Ctrl+O", "⌘+O")} onClick={() => menuAction(handleOpen)} />
                 <MenuDivider />
@@ -376,7 +376,7 @@ function App() {
               Edit
             </button>
             {openMenu === "edit" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-50 py-1 ${menuPanelClass}`}>
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<Undo2 size={14} />} label="Undo" shortcut={sc("Ctrl+Z", "⌘+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true))} />
                 <MenuItem icon={<Redo2 size={14} />} label="Redo" shortcut={sc("Ctrl+Shift+Z", "⌘+Shift+Z")} onClick={() => menuAction(() => dispatchEditorKey("z", true, true))} />
                 <MenuDivider />
@@ -402,7 +402,7 @@ function App() {
               Tasks
             </button>
             {openMenu === "tasks" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-50 py-1 ${menuPanelClass}`}>
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem icon={<CheckSquare size={14} />} label="New Task" shortcut={sc("Ctrl+Enter", "⌘+Enter")} onClick={() => menuAction(() => dispatchEditorKey("Enter", true))} />
                 <MenuItem icon={<CheckSquare size={14} />} label="Toggle Done" shortcut={sc("Ctrl+D", "⌘+D")} onClick={() => menuAction(() => dispatchEditorKey("d", true))} />
                 <MenuItem icon={<XSquare size={14} />} label="Toggle Cancelled" shortcut={sc("Alt+C", "⌥+C")} onClick={() => menuAction(() => dispatchEditorKey("c", false, false, true))} />
@@ -424,7 +424,7 @@ function App() {
               Format
             </button>
             {openMenu === "format" && (
-              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-50 py-1 ${menuPanelClass}`}>
+              <div className={`absolute top-full left-0 mt-0.5 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
                 <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
                 <MenuItem label="Italic" shortcut={sc("Ctrl+I", "⌘+I")} onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
                 <MenuItem label="Underline" shortcut={sc("Ctrl+U", "⌘+U")} onClick={() => menuAction(() => dispatchEditorKey("u", true))} />

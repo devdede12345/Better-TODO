@@ -27,10 +27,140 @@ html, body, #root {
   overflow: hidden;
 }
 
+.sticker-border {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.sticker-title {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.sticker-icon-muted {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sticker-icon-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sticker-badge {
+  background: rgba(59, 130, 246, 0.2);
+  color: rgb(147, 197, 253);
+}
+
+.sticker-menu-button {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.sticker-menu-button:hover {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sticker-menu-button-active {
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sticker-menu-panel {
+  background: rgba(24, 24, 37, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sticker-menu-item {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sticker-menu-item:hover {
+  color: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sticker-task-text {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.sticker-empty,
+.sticker-footer {
+  color: rgba(255, 255, 255, 0.42);
+}
+
 html.theme-light .sticker-root,
 body.theme-light .sticker-root {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.55);
+}
+
+html.theme-light .sticker-border,
+body.theme-light .sticker-border {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+html.theme-light .sticker-title,
+body.theme-light .sticker-title {
+  color: rgba(31, 41, 55, 0.92);
+}
+
+html.theme-light .sticker-icon-muted,
+body.theme-light .sticker-icon-muted {
+  color: rgba(71, 85, 105, 0.78);
+}
+
+html.theme-light .sticker-icon-button:hover,
+body.theme-light .sticker-icon-button:hover {
+  background: rgba(148, 163, 184, 0.22);
+}
+
+html.theme-light .sticker-badge,
+body.theme-light .sticker-badge {
+  background: rgba(59, 130, 246, 0.14);
+  color: rgb(37, 99, 235);
+}
+
+html.theme-light .sticker-menu-button,
+body.theme-light .sticker-menu-button {
+  color: rgba(71, 85, 105, 0.9);
+}
+
+html.theme-light .sticker-menu-button:hover,
+body.theme-light .sticker-menu-button:hover {
+  color: rgba(15, 23, 42, 0.95);
+  background: rgba(148, 163, 184, 0.2);
+}
+
+html.theme-light .sticker-menu-button-active,
+body.theme-light .sticker-menu-button-active {
+  color: rgba(15, 23, 42, 0.95);
+  background: rgba(148, 163, 184, 0.28);
+}
+
+html.theme-light .sticker-menu-panel,
+body.theme-light .sticker-menu-panel {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+}
+
+html.theme-light .sticker-menu-item,
+body.theme-light .sticker-menu-item {
+  color: rgba(51, 65, 85, 0.92);
+}
+
+html.theme-light .sticker-menu-item:hover,
+body.theme-light .sticker-menu-item:hover {
+  color: rgba(15, 23, 42, 0.95);
+  background: rgba(148, 163, 184, 0.2);
+}
+
+html.theme-light .sticker-task-text,
+body.theme-light .sticker-task-text {
+  color: rgba(31, 41, 55, 0.9);
+}
+
+html.theme-light .sticker-empty,
+html.theme-light .sticker-footer,
+body.theme-light .sticker-empty,
+body.theme-light .sticker-footer {
+  color: rgba(100, 116, 139, 0.95);
 }
 
 html.theme-light .sticker-handle,
