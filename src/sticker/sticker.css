@@ -185,14 +185,11 @@ body.theme-light .sticker-body::-webkit-scrollbar-thumb {
   background: rgba(100, 116, 139, 0.55);
 }
 
-.sticker-root.locked {
-  pointer-events: none;
-}
-
 /* Drag handle */
 .sticker-handle {
   -webkit-app-region: drag;
   cursor: grab;
+  min-height: 34px;
 }
 
 .sticker-handle-nodrag {
@@ -211,6 +208,11 @@ body.theme-light .sticker-body::-webkit-scrollbar-thumb {
 .sticker-body::-webkit-scrollbar-thumb {
   background: rgba(69, 71, 90, 0.5);
   border-radius: 2px;
+}
+
+.sticker-body.locked {
+  pointer-events: none;
+  opacity: 0.72;
 }
 
 /* Task items */

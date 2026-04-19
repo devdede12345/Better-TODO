@@ -175,7 +175,7 @@ export default function StickerApp() {
   };
 
   return (
-    <div className={`sticker-root ${locked ? "locked" : ""}`}>
+    <div className="sticker-root">
       {/* Header / drag handle */}
       <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b sticker-border">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -193,7 +193,7 @@ export default function StickerApp() {
           <div className="relative flex-shrink-0 sticker-handle-nodrag ml-1" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+              className={`h-5 px-1.5 py-0.5 text-[10px] rounded transition-colors ${
                 menuOpen ? "sticker-menu-button-active" : "sticker-menu-button"
               }`}
             >
@@ -222,7 +222,7 @@ export default function StickerApp() {
           {/* Back to editor */}
           <button
             onClick={handleBack}
-            className="flex-shrink-0 sticker-handle-nodrag px-1.5 py-0.5 text-[10px] rounded sticker-menu-button transition-colors"
+            className="h-5 flex-shrink-0 sticker-handle-nodrag px-1.5 py-0.5 text-[10px] rounded sticker-menu-button transition-colors"
             title="Back to editor"
           >
             Back
@@ -252,7 +252,7 @@ export default function StickerApp() {
       </div>
 
       {/* Task list */}
-      <div className="sticker-body flex-1 overflow-y-auto px-3 py-2">
+      <div className={`sticker-body flex-1 overflow-y-auto px-3 py-2 ${locked ? "locked" : ""}`}>
         {lines.length === 0 && (
           <div className="text-[11px] sticker-empty text-center py-8">
             No tasks loaded

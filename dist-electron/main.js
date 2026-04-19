@@ -70,7 +70,8 @@ function extractReminderTasks(content, filePath) {
       taskText,
       projectName,
       minutes,
-      timer: null
+      timer: null,
+      dueAt: 0
     });
   }
   return reminders;
@@ -128,10 +129,27 @@ function removeReminder(reminderId) {
 function scheduleReminder(reminderId, delayMs) {
   const reminder = activeReminders.get(reminderId);
   if (!reminder) return;
+  reminder.dueAt = Date.now() + Math.max(1e3, delayMs);
   clearReminderTimer(reminder);
   reminder.timer = setTimeout(() => {
     fireReminder(reminderId);
   }, Math.max(1e3, delayMs));
+}
+function getNextReminderPreview() {
+  let next = null;
+  for (const reminder of activeReminders.values()) {
+    if (!next || reminder.dueAt < next.dueAt) {
+      next = reminder;
+    }
+  }
+  if (!next) return null;
+  const remainingSeconds = Math.max(0, Math.ceil((next.dueAt - Date.now()) / 1e3));
+  return {
+    id: next.id,
+    projectName: next.projectName,
+    taskText: cleanTaskLabel(next.taskText),
+    remainingSeconds
+  };
 }
 function showReminderNotification(reminder) {
   let handled = false;
@@ -511,6 +529,7 @@ Archive:
   return { path: defaultPath, content: defaultContent };
 });
 electron.ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+electron.ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
 electron.ipcMain.handle("sticker:requestContent", () => {
   if (currentFilePath && fs.existsSync(currentFilePath)) {
     const content = fs.readFileSync(currentFilePath, "utf-8");
@@ -542,7 +561,7 @@ electron.ipcMain.handle("sticker:isVisible", () => {
 electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
   stickerLocked = locked;
   if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.setIgnoreMouseEvents(locked, { forward: true });
+    stickerWindow.setIgnoreMouseEvents(false);
     stickerWindow.webContents.send("sticker:lockState", locked);
   }
   return locked;

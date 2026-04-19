@@ -8,6 +8,7 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   saveFileAs: (content) => electron.ipcRenderer.invoke("file:saveAs", content),
   getDefaultFile: () => electron.ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => electron.ipcRenderer.invoke("file:getCurrentPath"),
+  getNextReminder: () => electron.ipcRenderer.invoke("reminder:getNext"),
   // Sticker operations
   stickerToggle: () => electron.ipcRenderer.invoke("sticker:toggle"),
   stickerIsVisible: () => electron.ipcRenderer.invoke("sticker:isVisible"),

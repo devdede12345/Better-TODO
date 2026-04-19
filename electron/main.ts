@@ -21,6 +21,7 @@ interface ReminderTask {
   projectName: string;
   minutes: number;
   timer: NodeJS.Timeout | null;
+  dueAt: number;
 }
 
 const activeReminders = new Map<string, ReminderTask>();
@@ -102,6 +103,7 @@ function extractReminderTasks(content: string, filePath: string): ReminderTask[]
       projectName,
       minutes,
       timer: null,
+      dueAt: 0,
     });
   }
 
@@ -169,10 +171,29 @@ function removeReminder(reminderId: string) {
 function scheduleReminder(reminderId: string, delayMs: number) {
   const reminder = activeReminders.get(reminderId);
   if (!reminder) return;
+  reminder.dueAt = Date.now() + Math.max(1000, delayMs);
   clearReminderTimer(reminder);
   reminder.timer = setTimeout(() => {
     fireReminder(reminderId);
   }, Math.max(1000, delayMs));
+}
+
+function getNextReminderPreview() {
+  let next: ReminderTask | null = null;
+  for (const reminder of activeReminders.values()) {
+    if (!next || reminder.dueAt < next.dueAt) {
+      next = reminder;
+    }
+  }
+  if (!next) return null;
+
+  const remainingSeconds = Math.max(0, Math.ceil((next.dueAt - Date.now()) / 1000));
+  return {
+    id: next.id,
+    projectName: next.projectName,
+    taskText: cleanTaskLabel(next.taskText),
+    remainingSeconds,
+  };
 }
 
 function showReminderNotification(reminder: ReminderTask) {
@@ -615,6 +636,7 @@ Archive:
 });
 
 ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
 
 // Sticker can request current file content directly
 ipcMain.handle("sticker:requestContent", () => {
@@ -655,7 +677,7 @@ ipcMain.handle("sticker:isVisible", () => {
 ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
   stickerLocked = locked;
   if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.setIgnoreMouseEvents(locked, { forward: true });
+    stickerWindow.setIgnoreMouseEvents(false);
     stickerWindow.webContents.send("sticker:lockState", locked);
   }
   return locked;

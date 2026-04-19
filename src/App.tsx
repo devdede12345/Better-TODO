@@ -28,6 +28,13 @@ import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 
+interface ReminderPreview {
+  id: string;
+  projectName: string;
+  taskText: string;
+  remainingSeconds: number;
+}
+
 function App() {
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -39,6 +46,7 @@ function App() {
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
   const [stickerVisible, setStickerVisible] = useState(false);
+  const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
   const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">(() => {
     const saved = localStorage.getItem("theme-mode");
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
@@ -171,6 +179,21 @@ function App() {
     return cleanup;
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      if (!window.electronAPI?.getNextReminder) return;
+      const reminder = await window.electronAPI.getNextReminder();
+      if (alive) setNextReminder(reminder);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
   // Check initial sticker state
   useEffect(() => {
     window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
@@ -264,6 +287,15 @@ function App() {
 
   const cycleThemeMode = useCallback(() => {
     setThemeMode((prev) => (prev === "system" ? "light" : prev === "light" ? "dark" : "system"));
+  }, []);
+
+  const formatCountdown = useCallback((totalSeconds: number) => {
+    const safe = Math.max(0, totalSeconds);
+    const h = Math.floor(safe / 3600);
+    const m = Math.floor((safe % 3600) / 60);
+    const s = safe % 60;
+    if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }, []);
 
   // Dispatch a CodeMirror command via a synthetic keyboard event
@@ -443,6 +475,16 @@ function App() {
             Sticker
           </button>
         </div>
+        </div>
+
+        <div className="titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border bg-editor-overlay/60">
+          <span className="text-[10px] text-editor-muted uppercase tracking-wide">Next</span>
+          <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText}` : "No active reminders"}>
+            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText}` : "No active reminders"}
+          </span>
+          <span className="text-[11px] font-medium text-editor-accent tabular-nums">
+            {nextReminder ? formatCountdown(nextReminder.remainingSeconds) : "--:--"}
+          </span>
         </div>
 
         <div className="flex-1" />
