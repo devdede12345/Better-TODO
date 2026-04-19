@@ -40,7 +40,7 @@ export default function Dashboard({ onNew, onOpen }: DashboardProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col gap-3 w-72">
+      <div className="flex flex-col gap-3 w-[36rem] max-w-[92vw]">
         <button
           onClick={onNew}
           className="group flex items-center gap-4 px-5 py-3.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
@@ -49,11 +49,11 @@ export default function Dashboard({ onNew, onOpen }: DashboardProps) {
             size={20}
             className="text-editor-accent group-hover:text-editor-accent transition-colors"
           />
-          <div className="flex flex-col items-start">
-            <span className="text-sm font-medium text-editor-text font-mono">
+          <div className="flex flex-col items-start min-w-0">
+            <span className="text-sm font-medium text-editor-text font-mono whitespace-nowrap">
               New TODO File
             </span>
-            <span className="text-xs text-editor-muted font-mono">
+            <span className="text-xs text-editor-muted font-mono whitespace-nowrap">
               Create a new .todo file
             </span>
           </div>
@@ -70,11 +70,11 @@ export default function Dashboard({ onNew, onOpen }: DashboardProps) {
             size={20}
             className="text-editor-peach group-hover:text-editor-peach transition-colors"
           />
-          <div className="flex flex-col items-start">
-            <span className="text-sm font-medium text-editor-text font-mono">
+          <div className="flex flex-col items-start min-w-0">
+            <span className="text-sm font-medium text-editor-text font-mono whitespace-nowrap">
               Open TODO File
             </span>
-            <span className="text-xs text-editor-muted font-mono">
+            <span className="text-xs text-editor-muted font-mono whitespace-nowrap">
               Open an existing .todo file
             </span>
           </div>

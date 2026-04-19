@@ -27,6 +27,34 @@ html, body, #root {
   overflow: hidden;
 }
 
+html.theme-light .sticker-root,
+body.theme-light .sticker-root {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+}
+
+html.theme-light .sticker-handle,
+body.theme-light .sticker-handle {
+  border-bottom-color: rgba(148, 163, 184, 0.45);
+}
+
+html.theme-light .sticker-project,
+body.theme-light .sticker-project {
+  color: #7c3aed;
+}
+
+html.theme-light .sticker-task,
+html.theme-light .sticker-task span,
+body.theme-light .sticker-task,
+body.theme-light .sticker-task span {
+  color: rgba(31, 41, 55, 0.88);
+}
+
+html.theme-light .sticker-body::-webkit-scrollbar-thumb,
+body.theme-light .sticker-body::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.55);
+}
+
 .sticker-root.locked {
   pointer-events: none;
 }

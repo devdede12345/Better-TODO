@@ -19,6 +19,24 @@ export default function QuickEntryApp() {
     window.electronAPI?.onQuickEntryShow?.(handler);
   }, []);
 
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = (dark: boolean) => {
+      const next = dark ? "theme-dark" : "theme-light";
+      const prev = dark ? "theme-light" : "theme-dark";
+      document.documentElement.classList.remove(prev);
+      document.body.classList.remove(prev);
+      document.documentElement.classList.add(next);
+      document.body.classList.add(next);
+    };
+
+    applyTheme(media.matches);
+
+    const onChange = (e: MediaQueryListEvent) => applyTheme(e.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
   const handleSubmit = useCallback(() => {
     const trimmed = text.trim();
     if (!trimmed) return;
