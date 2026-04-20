@@ -1,6 +1,15 @@
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 
+function formatTaskStatusTimestamp(date = new Date()): string {
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${d} ${h}:${m}`;
+}
+
 // Toggle the task marker: ☐ → ✔ → ✘ → ☐ (Ctrl+D)
 function toggleDone(view: EditorView): boolean {
   const { state } = view;
@@ -9,7 +18,7 @@ function toggleDone(view: EditorView): boolean {
   for (const range of state.selection.ranges) {
     const line = state.doc.lineAt(range.head);
     const text = line.text;
-    const now = new Date().toISOString().slice(0, 10);
+    const now = formatTaskStatusTimestamp();
 
     if (text.includes("☐")) {
       // Pending -> Done
@@ -59,7 +68,7 @@ function toggleCancelled(view: EditorView): boolean {
   for (const range of state.selection.ranges) {
     const line = state.doc.lineAt(range.head);
     const text = line.text;
-    const now = new Date().toISOString().slice(0, 10);
+    const now = formatTaskStatusTimestamp();
 
     if (text.includes("☐")) {
       // Pending -> Cancelled
@@ -283,7 +292,7 @@ const clickToggle = EditorView.domEventHandlers({
 
     // Re-use toggleTask logic on this specific line
     const changes: { from: number; to: number; insert: string }[] = [];
-    const now = new Date().toISOString().slice(0, 10);
+    const now = formatTaskStatusTimestamp();
 
     if (marker === "☐") {
       // Pending -> Done
