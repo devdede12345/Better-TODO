@@ -181,10 +181,9 @@ function newTask(view: EditorView): boolean {
   const { state } = view;
   const line = state.doc.lineAt(state.selection.main.head);
   const indent = line.text.match(/^(\s*)/)?.[1] || "";
-  const isFirstLine = line.number === 1;
   const isLineEmpty = line.text.trim() === "";
 
-  if (isFirstLine && isLineEmpty) {
+  if (isLineEmpty) {
     const insert = `${indent}☐ `;
     view.dispatch({
       changes: { from: line.from, to: line.to, insert },
@@ -193,7 +192,6 @@ function newTask(view: EditorView): boolean {
     return true;
   }
 
-  // First task can be created in-place on an empty first line; subsequent tasks are newline + marker.
   const insert = `\n${indent}☐ `;
   view.dispatch({
     changes: { from: line.to, to: line.to, insert },
