@@ -10,6 +10,11 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   getCurrentPath: () => electron.ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => electron.ipcRenderer.invoke("reminder:getNext"),
   reminderSyncDraft: (content) => electron.ipcRenderer.send("reminder:syncDraft", content),
+  onNativeMenuAction: (cb) => {
+    const handler = (_event, action) => cb(action);
+    electron.ipcRenderer.on("nativeMenu:action", handler);
+    return () => electron.ipcRenderer.removeListener("nativeMenu:action", handler);
+  },
   // Sticker operations
   stickerToggle: () => electron.ipcRenderer.invoke("sticker:toggle"),
   stickerIsVisible: () => electron.ipcRenderer.invoke("sticker:isVisible"),

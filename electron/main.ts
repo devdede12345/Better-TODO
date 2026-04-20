@@ -25,6 +25,122 @@ interface ReminderTask {
 
 const activeReminders = new Map<string, ReminderTask>();
 
+type NativeMenuAction =
+  | "file:new"
+  | "file:open"
+  | "file:save"
+  | "file:saveAs"
+  | "task:new"
+  | "task:toggleDone"
+  | "task:toggleCancelled"
+  | "task:archive"
+  | "edit:find"
+  | "edit:replace"
+  | "format:bold"
+  | "format:italic"
+  | "format:underline"
+  | "view:sticker"
+  | "view:themeCycle";
+
+function sendNativeMenuAction(action: NativeMenuAction) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const target = mainWindow;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+
+  if (target.webContents.isLoadingMainFrame()) {
+    target.webContents.once("did-finish-load", () => {
+      target.webContents.send("nativeMenu:action", action);
+    });
+    return;
+  }
+
+  target.webContents.send("nativeMenu:action", action);
+}
+
+function setupMacApplicationMenu() {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
+    {
+      label: "File",
+      submenu: [
+        { label: "New File", accelerator: "CommandOrControl+N", click: () => sendNativeMenuAction("file:new") },
+        { label: "Open File", accelerator: "CommandOrControl+O", click: () => sendNativeMenuAction("file:open") },
+        { type: "separator" },
+        { label: "Save", accelerator: "CommandOrControl+S", click: () => sendNativeMenuAction("file:save") },
+        { label: "Save As...", accelerator: "CommandOrControl+Shift+S", click: () => sendNativeMenuAction("file:saveAs") },
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { type: "separator" },
+        { label: "Find", accelerator: "CommandOrControl+F", click: () => sendNativeMenuAction("edit:find") },
+        { label: "Replace", accelerator: "CommandOrControl+H", click: () => sendNativeMenuAction("edit:replace") },
+      ],
+    },
+    {
+      label: "Tasks",
+      submenu: [
+        { label: "New Task", accelerator: "CommandOrControl+Enter", click: () => sendNativeMenuAction("task:new") },
+        { label: "Toggle Done", accelerator: "CommandOrControl+D", click: () => sendNativeMenuAction("task:toggleDone") },
+        { label: "Toggle Cancelled", accelerator: "Alt+C", click: () => sendNativeMenuAction("task:toggleCancelled") },
+        { type: "separator" },
+        { label: "Archive Done", accelerator: "CommandOrControl+Shift+A", click: () => sendNativeMenuAction("task:archive") },
+      ],
+    },
+    {
+      label: "Format",
+      submenu: [
+        { label: "Bold", accelerator: "CommandOrControl+B", click: () => sendNativeMenuAction("format:bold") },
+        { label: "Italic", accelerator: "CommandOrControl+I", click: () => sendNativeMenuAction("format:italic") },
+        { label: "Underline", accelerator: "CommandOrControl+U", click: () => sendNativeMenuAction("format:underline") },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { label: "Toggle Sticker", click: () => sendNativeMenuAction("view:sticker") },
+        { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [{ role: "minimize" }, { role: "zoom" }, { role: "front" }],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function toValidTimestamp(year: number, month: number, day: number, hour: number, minute: number): number | null {
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
@@ -521,6 +637,9 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  if (isMac) {
+    setupMacApplicationMenu();
+  }
   createWindow();
   createTray();
 

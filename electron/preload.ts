@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getCurrentPath: () => ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => ipcRenderer.invoke("reminder:getNext"),
   reminderSyncDraft: (content: string) => ipcRenderer.send("reminder:syncDraft", content),
+  onNativeMenuAction: (cb: (action: string) => void) => {
+    const handler = (_event: any, action: string) => cb(action);
+    ipcRenderer.on("nativeMenu:action", handler);
+    return () => ipcRenderer.removeListener("nativeMenu:action", handler);
+  },
 
   // Sticker operations
   stickerToggle: () => ipcRenderer.invoke("sticker:toggle"),

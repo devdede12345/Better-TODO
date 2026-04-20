@@ -25,6 +25,7 @@ declare global {
       getCurrentPath: () => Promise<string | null>;
       getNextReminder: () => Promise<ReminderPreview | null>;
       reminderSyncDraft: (content: string) => void;
+      onNativeMenuAction: (cb: (action: string) => void) => () => void;
 
       // Sticker
       stickerToggle: () => Promise<boolean>;

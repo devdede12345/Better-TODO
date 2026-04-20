@@ -37,6 +37,23 @@ interface ReminderPreview {
   isOverdue: boolean;
 }
 
+type NativeMenuAction =
+  | "file:new"
+  | "file:open"
+  | "file:save"
+  | "file:saveAs"
+  | "task:new"
+  | "task:toggleDone"
+  | "task:toggleCancelled"
+  | "task:archive"
+  | "edit:find"
+  | "edit:replace"
+  | "format:bold"
+  | "format:italic"
+  | "format:underline"
+  | "view:sticker"
+  | "view:themeCycle";
+
 function App() {
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -345,6 +362,69 @@ function App() {
     });
     editor.dispatchEvent(event);
   }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onNativeMenuAction) return;
+    const cleanup = window.electronAPI.onNativeMenuAction((action) => {
+      switch (action as NativeMenuAction) {
+        case "file:new":
+          void handleNew();
+          break;
+        case "file:open":
+          void handleOpen();
+          break;
+        case "file:save":
+          void handleSave();
+          break;
+        case "file:saveAs":
+          void handleSaveAs();
+          break;
+        case "task:new":
+          createNewTask();
+          break;
+        case "task:toggleDone":
+          dispatchEditorKey("d", true);
+          break;
+        case "task:toggleCancelled":
+          dispatchEditorKey("c", false, false, true);
+          break;
+        case "task:archive":
+          dispatchEditorKey("a", true, true);
+          break;
+        case "edit:find":
+          dispatchEditorKey("f", true);
+          break;
+        case "edit:replace":
+          dispatchEditorKey("h", true);
+          break;
+        case "format:bold":
+          dispatchEditorKey("b", true);
+          break;
+        case "format:italic":
+          dispatchEditorKey("i", true);
+          break;
+        case "format:underline":
+          dispatchEditorKey("u", true);
+          break;
+        case "view:sticker":
+          void handleStickerToggle();
+          break;
+        case "view:themeCycle":
+          cycleThemeMode();
+          break;
+      }
+    });
+    return cleanup;
+  }, [
+    handleNew,
+    handleOpen,
+    handleSave,
+    handleSaveAs,
+    createNewTask,
+    dispatchEditorKey,
+    handleStickerToggle,
+    cycleThemeMode,
+  ]);
 
   const fileName = filePath ? filePath.split(/[\\/]/).pop() : "Untitled";
 
