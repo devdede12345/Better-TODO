@@ -265,6 +265,13 @@ function App() {
       document.documentElement.classList.add(next);
       document.body.classList.add(next);
       setResolvedTheme(dark ? "dark" : "light");
+
+      // Sync Windows title bar overlay colors with theme
+      if (!isMac && window.electronAPI?.setTitleBarOverlay) {
+        const color = dark ? "#1e1e2e" : "#eef2ff";
+        const symbolColor = dark ? "#cdd6f4" : "#1f2937";
+        window.electronAPI.setTitleBarOverlay(color, symbolColor);
+      }
     };
 
     applyTheme();

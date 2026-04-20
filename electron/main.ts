@@ -1325,3 +1325,10 @@ ipcMain.handle("system:setMinimizeToTray", (_event, enabled: boolean) => {
   saveSystemSettings(s);
   return enabled;
 });
+
+ipcMain.handle("system:setTitleBarOverlay", (_event, color: string, symbolColor: string) => {
+  if (isMac || !mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setTitleBarOverlay({ color, symbolColor, height: 36 });
+  } catch { /* ignore on unsupported platforms */ }
+});
