@@ -9,8 +9,26 @@ let quickEntryWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentFilePath: string | null = null;
 let stickerLocked = false;
+let minimizeToTray = false;
+let forceQuit = false;
 const isMac = process.platform === "darwin";
 const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
+
+// Persist system settings to a JSON file next to the app
+const settingsPath = join(app.getPath("userData"), "system-settings.json");
+
+function loadSystemSettings(): { autoLaunch: boolean; minimizeToTray: boolean } {
+  try {
+    if (existsSync(settingsPath)) {
+      return JSON.parse(readFileSync(settingsPath, "utf-8"));
+    }
+  } catch { /* ignore */ }
+  return { autoLaunch: false, minimizeToTray: false };
+}
+
+function saveSystemSettings(s: { autoLaunch: boolean; minimizeToTray: boolean }) {
+  writeFileSync(settingsPath, JSON.stringify(s, null, 2), "utf-8");
+}
 
 const REMINDER_REPEAT_MS = 5 * 60 * 1000;
 
@@ -475,6 +493,14 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, "../dist/index.html"));
   }
 
+  mainWindow.on("close", (e) => {
+    if (minimizeToTray && !forceQuit) {
+      e.preventDefault();
+      mainWindow?.hide();
+      return;
+    }
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
     // Close sticker when main window closes
@@ -706,9 +732,10 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
-  if (isMac) {
-    setupMacApplicationMenu();
-  }
+  // Load system settings on start
+  const sysSettings = loadSystemSettings();
+  minimizeToTray = sysSettings.minimizeToTray;
+
   createWindow();
   createTray();
 
@@ -720,6 +747,10 @@ app.whenReady().then(() => {
   if (!registered) {
     console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
   }
+});
+
+app.on("before-quit", () => {
+  forceQuit = true;
 });
 
 app.on("will-quit", () => {
@@ -1068,4 +1099,32 @@ ipcMain.handle("quickentry:hide", () => {
   if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
     quickEntryWindow.hide();
   }
+});
+
+// ─── System Settings IPC ────────────────────────────────────────────────────
+
+ipcMain.handle("system:getSettings", () => {
+  const s = loadSystemSettings();
+  // Also read the actual login item state
+  const loginSettings = app.getLoginItemSettings();
+  return {
+    autoLaunch: loginSettings.openAtLogin,
+    minimizeToTray: s.minimizeToTray,
+  };
+});
+
+ipcMain.handle("system:setAutoLaunch", (_event, enabled: boolean) => {
+  app.setLoginItemSettings({ openAtLogin: enabled });
+  const s = loadSystemSettings();
+  s.autoLaunch = enabled;
+  saveSystemSettings(s);
+  return enabled;
+});
+
+ipcMain.handle("system:setMinimizeToTray", (_event, enabled: boolean) => {
+  minimizeToTray = enabled;
+  const s = loadSystemSettings();
+  s.minimizeToTray = enabled;
+  saveSystemSettings(s);
+  return enabled;
 });
