@@ -29,6 +29,21 @@ const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
 const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1e3;
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1e3;
 let completedTaskCleanupTimer = null;
+const fileContentCache = /* @__PURE__ */ new Map();
+function readFileCached(filePath) {
+  if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
+  const stats = fs.statSync(filePath);
+  const cached = fileContentCache.get(filePath);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    return cached.content;
+  }
+  const content = fs.readFileSync(filePath, "utf-8");
+  fileContentCache.set(filePath, { content, mtimeMs: stats.mtimeMs, size: stats.size });
+  return content;
+}
+function invalidateFileCache(filePath) {
+  if (filePath) fileContentCache.delete(filePath);
+}
 const activeReminders = /* @__PURE__ */ new Map();
 function buildFileTree(rootPath) {
   if (!fs.existsSync(rootPath)) return null;
@@ -447,7 +462,7 @@ function createWidgetWindow() {
   }
   widgetWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && fs.existsSync(currentFilePath)) {
-      const content = fs.readFileSync(currentFilePath, "utf-8");
+      const content = readFileCached(currentFilePath);
       const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
       widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:update", content, fileName);
     }
@@ -586,7 +601,7 @@ electron.ipcMain.handle("file:open", async () => {
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   currentFilePath = result.filePaths[0];
-  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? fs.readFileSync(currentFilePath, "utf-8");
+  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileCached(currentFilePath);
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (widgetWindow && !widgetWindow.isDestroyed()) {
     widgetWindow.webContents.send("sticker:update", content, fn);
@@ -594,19 +609,13 @@ electron.ipcMain.handle("file:open", async () => {
   syncRemindersFromContent(content, currentFilePath);
   return { path: currentFilePath, content };
 });
-electron.ipcMain.handle("file:save", async (_event, content) => {
+electron.ipcMain.handle("file:save", (_event, content) => {
   if (!currentFilePath) {
-    const result = await electron.dialog.showSaveDialog(mainWindow, {
-      defaultPath: "tasks.todo",
-      filters: [
-        { name: "Todo Files", extensions: ["todo"] },
-        { name: "All Files", extensions: ["*"] }
-      ]
-    });
-    if (result.canceled || !result.filePath) return null;
-    currentFilePath = result.filePath;
+    electron.ipcMain.emit("file:saveAs", _event, content);
+    return;
   }
   fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (widgetWindow && !widgetWindow.isDestroyed()) {
     widgetWindow.webContents.send("sticker:update", content, fn);
@@ -625,6 +634,7 @@ electron.ipcMain.handle("file:saveAs", async (_event, content) => {
   if (result.canceled || !result.filePath) return null;
   currentFilePath = result.filePath;
   fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
 });
@@ -640,6 +650,7 @@ electron.ipcMain.handle("file:new", async () => {
   currentFilePath = result.filePath;
   const defaultContent = ``;
   fs.writeFileSync(currentFilePath, defaultContent, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(defaultContent, currentFilePath);
   return { path: currentFilePath, content: defaultContent };
 });
@@ -743,7 +754,7 @@ electron.ipcMain.handle("reminder:completeNext", () => {
 });
 electron.ipcMain.handle("sticker:requestContent", () => {
   if (currentFilePath && fs.existsSync(currentFilePath)) {
-    const content = fs.readFileSync(currentFilePath, "utf-8");
+    const content = readFileCached(currentFilePath);
     const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
     return { content, fileName };
   }
@@ -785,7 +796,7 @@ electron.ipcMain.handle("sticker:getLocked", () => stickerLocked);
 electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
   if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
   if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
-  const lines = fs.readFileSync(currentFilePath, "utf-8").split("\n");
+  const lines = readFileCached(currentFilePath).split("\n");
   if (lineIndex >= lines.length) return false;
   const line = lines[lineIndex];
   const now = formatTaskStatusTimestamp();
@@ -804,6 +815,7 @@ electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
   }
   const content = lines.join("\n");
   fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   broadcastUpdatedContent(content, currentFilePath);
   return true;
@@ -812,7 +824,7 @@ electron.ipcMain.handle("sticker:deleteTask", (_event, lineIndex) => {
   var _a;
   if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
   if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
-  const lines = fs.readFileSync(currentFilePath, "utf-8").split("\n");
+  const lines = readFileCached(currentFilePath).split("\n");
   if (lineIndex >= lines.length) return false;
   const target = ((_a = lines[lineIndex]) == null ? void 0 : _a.trimStart()) || "";
   if (!target.startsWith("☐") && !target.startsWith("✔") && !target.startsWith("✘")) {
@@ -821,6 +833,7 @@ electron.ipcMain.handle("sticker:deleteTask", (_event, lineIndex) => {
   lines.splice(lineIndex, 1);
   const content = lines.join("\n");
   fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   broadcastUpdatedContent(content, currentFilePath);
   return true;
@@ -830,7 +843,7 @@ electron.ipcMain.handle("sticker:addTask", (_event, text) => {
   const taskText = text.trim();
   if (!taskText) return false;
   const taskLine = `  ☐ ${taskText}`;
-  let content = fs.readFileSync(currentFilePath, "utf-8");
+  let content = readFileCached(currentFilePath);
   const archiveIdx = content.indexOf("\nArchive:");
   if (archiveIdx !== -1) {
     const before = content.slice(0, archiveIdx).trimEnd();
@@ -845,6 +858,7 @@ ${taskLine}
 `;
   }
   fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   broadcastUpdatedContent(content, currentFilePath);
   return true;
@@ -873,7 +887,7 @@ electron.ipcMain.handle("quickentry:submit", (_event, text) => {
   if (!text.trim()) return;
   const tasks = text.split("\n").filter((l) => l.trim()).map((l) => `  ☐ ${l.trim()}`).join("\n");
   if (currentFilePath && fs.existsSync(currentFilePath)) {
-    let content = fs.readFileSync(currentFilePath, "utf-8");
+    let content = readFileCached(currentFilePath);
     const quickaddIdx = content.indexOf("\nQuickadd:");
     if (quickaddIdx !== -1) {
       const afterHeader = quickaddIdx + "\nQuickadd:".length;
@@ -890,6 +904,7 @@ electron.ipcMain.handle("quickentry:submit", (_event, text) => {
       }
     }
     fs.writeFileSync(currentFilePath, content, "utf-8");
+    invalidateFileCache(currentFilePath);
     syncRemindersFromContent(content, currentFilePath);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("editor:taskAppended", content);

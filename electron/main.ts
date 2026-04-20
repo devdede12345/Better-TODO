@@ -35,6 +35,34 @@ const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1000;
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1000;
 let completedTaskCleanupTimer: NodeJS.Timeout | null = null;
 
+// File content cache to reduce I/O
+interface CacheEntry {
+  content: string;
+  mtimeMs: number;
+  size: number;
+}
+const fileContentCache = new Map<string, CacheEntry>();
+
+function readFileCached(filePath: string): string {
+  if (!existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
+  const stats = statSync(filePath);
+  const cached = fileContentCache.get(filePath);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    return cached.content;
+  }
+  const content = readFileSync(filePath, "utf-8");
+  fileContentCache.set(filePath, { content, mtimeMs: stats.mtimeMs, size: stats.size });
+  return content;
+}
+
+function invalidateFileCache(filePath: string | null) {
+  if (filePath) fileContentCache.delete(filePath);
+}
+
+function clearFileCache() {
+  fileContentCache.clear();
+}
+
 interface FileTreeNode {
   name: string;
   path: string;
@@ -677,7 +705,7 @@ function createStickerWindow() {
   // Send current file content to sticker once it's ready
   stickerWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && existsSync(currentFilePath)) {
-      const content = readFileSync(currentFilePath, "utf-8");
+      const content = readFileCached(currentFilePath);
       const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
       stickerWindow?.webContents.send("sticker:update", content, fileName);
     }
@@ -738,7 +766,7 @@ function createWidgetWindow() {
 
   widgetWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && existsSync(currentFilePath)) {
-      const content = readFileSync(currentFilePath, "utf-8");
+      const content = readFileCached(currentFilePath);
       const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
       widgetWindow?.webContents.send("sticker:update", content, fileName);
     }
@@ -914,7 +942,7 @@ ipcMain.handle("file:open", async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
 
   currentFilePath = result.filePaths[0];
-  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileSync(currentFilePath, "utf-8");
+  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileCached(currentFilePath);
   // Also sync to sticker
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
@@ -927,20 +955,14 @@ ipcMain.handle("file:open", async () => {
   return { path: currentFilePath, content };
 });
 
-ipcMain.handle("file:save", async (_event, content: string) => {
+ipcMain.handle("file:save", (_event, content: string) => {
   if (!currentFilePath) {
-    const result = await dialog.showSaveDialog(mainWindow!, {
-      defaultPath: "tasks.todo",
-      filters: [
-        { name: "Todo Files", extensions: ["todo"] },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    });
-    if (result.canceled || !result.filePath) return null;
-    currentFilePath = result.filePath;
+    ipcMain.emit("file:saveAs", _event, content);
+    return;
   }
 
   writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   // Sync to sticker after save
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
@@ -964,6 +986,7 @@ ipcMain.handle("file:saveAs", async (_event, content: string) => {
   if (result.canceled || !result.filePath) return null;
   currentFilePath = result.filePath;
   writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
 });
@@ -980,6 +1003,7 @@ ipcMain.handle("file:new", async () => {
   currentFilePath = result.filePath;
   const defaultContent = ``;
   writeFileSync(currentFilePath, defaultContent, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(defaultContent, currentFilePath);
   return { path: currentFilePath, content: defaultContent };
 });
@@ -1099,7 +1123,7 @@ ipcMain.handle("reminder:completeNext", () => {
 // Sticker can request current file content directly
 ipcMain.handle("sticker:requestContent", () => {
   if (currentFilePath && existsSync(currentFilePath)) {
-    const content = readFileSync(currentFilePath, "utf-8");
+    const content = readFileCached(currentFilePath);
     const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
     return { content, fileName };
   }
@@ -1155,7 +1179,7 @@ ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
   if (!currentFilePath || !existsSync(currentFilePath)) return false;
   if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
 
-  const lines = readFileSync(currentFilePath, "utf-8").split("\n");
+  const lines = readFileCached(currentFilePath).split("\n");
   if (lineIndex >= lines.length) return false;
 
   const line = lines[lineIndex];
@@ -1181,6 +1205,7 @@ ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
 
   const content = lines.join("\n");
   writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   broadcastUpdatedContent(content, currentFilePath);
   return true;
@@ -1190,7 +1215,7 @@ ipcMain.handle("sticker:deleteTask", (_event, lineIndex: number) => {
   if (!currentFilePath || !existsSync(currentFilePath)) return false;
   if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
 
-  const lines = readFileSync(currentFilePath, "utf-8").split("\n");
+  const lines = readFileCached(currentFilePath).split("\n");
   if (lineIndex >= lines.length) return false;
 
   const target = lines[lineIndex]?.trimStart() || "";
@@ -1201,6 +1226,7 @@ ipcMain.handle("sticker:deleteTask", (_event, lineIndex: number) => {
   lines.splice(lineIndex, 1);
   const content = lines.join("\n");
   writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   broadcastUpdatedContent(content, currentFilePath);
   return true;
@@ -1213,7 +1239,7 @@ ipcMain.handle("sticker:addTask", (_event, text: string) => {
   if (!taskText) return false;
 
   const taskLine = `  ☐ ${taskText}`;
-  let content = readFileSync(currentFilePath, "utf-8");
+  let content = readFileCached(currentFilePath);
   const archiveIdx = content.indexOf("\nArchive:");
 
   if (archiveIdx !== -1) {
@@ -1226,6 +1252,7 @@ ipcMain.handle("sticker:addTask", (_event, text: string) => {
   }
 
   writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   broadcastUpdatedContent(content, currentFilePath);
   return true;
@@ -1270,7 +1297,7 @@ ipcMain.handle("quickentry:submit", (_event, text: string) => {
 
   // Append under "Quickadd:" section (create if missing, always before Archive:)
   if (currentFilePath && existsSync(currentFilePath)) {
-    let content = readFileSync(currentFilePath, "utf-8");
+    let content = readFileCached(currentFilePath);
     const quickaddIdx = content.indexOf("\nQuickadd:");
     if (quickaddIdx !== -1) {
       // Find the end of existing Quickadd section (next project header or Archive or EOF)
@@ -1290,6 +1317,7 @@ ipcMain.handle("quickentry:submit", (_event, text: string) => {
       }
     }
     writeFileSync(currentFilePath, content, "utf-8");
+    invalidateFileCache(currentFilePath);
     syncRemindersFromContent(content, currentFilePath);
 
     // Notify main editor to reload content
