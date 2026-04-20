@@ -61,5 +61,9 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_event, task) => cb(task);
     electron.ipcRenderer.on("editor:taskAppended", handler);
     return () => electron.ipcRenderer.removeListener("editor:taskAppended", handler);
-  }
+  },
+  // System settings
+  systemGetSettings: () => electron.ipcRenderer.invoke("system:getSettings"),
+  systemSetAutoLaunch: (enabled) => electron.ipcRenderer.invoke("system:setAutoLaunch", enabled),
+  systemSetMinimizeToTray: (enabled) => electron.ipcRenderer.invoke("system:setMinimizeToTray", enabled)
 });

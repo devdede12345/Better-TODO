@@ -8,8 +8,23 @@ let quickEntryWindow = null;
 let tray = null;
 let currentFilePath = null;
 let stickerLocked = false;
+let minimizeToTray = false;
+let forceQuit = false;
 const isMac = process.platform === "darwin";
 const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
+const settingsPath = path.join(electron.app.getPath("userData"), "system-settings.json");
+function loadSystemSettings() {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      return JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    }
+  } catch {
+  }
+  return { autoLaunch: false, minimizeToTray: false };
+}
+function saveSystemSettings(s) {
+  fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2), "utf-8");
+}
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
 const activeReminders = /* @__PURE__ */ new Map();
 function sendNativeMenuAction(action) {
@@ -390,6 +405,13 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+  mainWindow.on("close", (e) => {
+    if (minimizeToTray && !forceQuit) {
+      e.preventDefault();
+      mainWindow == null ? void 0 : mainWindow.hide();
+      return;
+    }
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
     if (widgetWindow && !widgetWindow.isDestroyed()) {
@@ -535,9 +557,8 @@ function createTray() {
   });
 }
 electron.app.whenReady().then(() => {
-  if (isMac) {
-    setupMacApplicationMenu();
-  }
+  const sysSettings = loadSystemSettings();
+  minimizeToTray = sysSettings.minimizeToTray;
   createWindow();
   createTray();
   const registered = electron.globalShortcut.register(quickEntryShortcut, () => {
@@ -546,6 +567,9 @@ electron.app.whenReady().then(() => {
   if (!registered) {
     console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
   }
+});
+electron.app.on("before-quit", () => {
+  forceQuit = true;
 });
 electron.app.on("will-quit", () => {
   electron.globalShortcut.unregisterAll();
@@ -820,4 +844,26 @@ electron.ipcMain.handle("quickentry:hide", () => {
   if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
     quickEntryWindow.hide();
   }
+});
+electron.ipcMain.handle("system:getSettings", () => {
+  const s = loadSystemSettings();
+  const loginSettings = electron.app.getLoginItemSettings();
+  return {
+    autoLaunch: loginSettings.openAtLogin,
+    minimizeToTray: s.minimizeToTray
+  };
+});
+electron.ipcMain.handle("system:setAutoLaunch", (_event, enabled) => {
+  electron.app.setLoginItemSettings({ openAtLogin: enabled });
+  const s = loadSystemSettings();
+  s.autoLaunch = enabled;
+  saveSystemSettings(s);
+  return enabled;
+});
+electron.ipcMain.handle("system:setMinimizeToTray", (_event, enabled) => {
+  minimizeToTray = enabled;
+  const s = loadSystemSettings();
+  s.minimizeToTray = enabled;
+  saveSystemSettings(s);
+  return enabled;
 });

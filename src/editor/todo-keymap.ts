@@ -190,10 +190,9 @@ function newTask(view: EditorView): boolean {
   const { state } = view;
   const line = state.doc.lineAt(state.selection.main.head);
   const indent = line.text.match(/^(\s*)/)?.[1] || "";
-  const isFirstLine = line.number === 1;
   const isLineEmpty = line.text.trim() === "";
 
-  if (isFirstLine && isLineEmpty) {
+  if (isLineEmpty) {
     const insert = `${indent}☐ `;
     view.dispatch({
       changes: { from: line.from, to: line.to, insert },
@@ -202,7 +201,6 @@ function newTask(view: EditorView): boolean {
     return true;
   }
 
-  // First task can be created in-place on an empty first line; subsequent tasks are newline + marker.
   const insert = `\n${indent}☐ `;
   view.dispatch({
     changes: { from: line.to, to: line.to, insert },
@@ -360,54 +358,76 @@ export const todoKeymap = keymap.of([
 
 export const todoClickToggle = clickToggle;
 
-// ─── Slash commands (/time, etc.) ────────────────────────────────────────────
+// ─── Slash commands (dynamic, template-based) ───────────────────────────────
 
-const SLASH_COMMANDS: Record<string, () => string> = {
-  "/time": () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const mo = now.getMonth() + 1;
-    const d = now.getDate();
-    const h = String(now.getHours()).padStart(2, "0");
-    const mi = String(now.getMinutes()).padStart(2, "0");
-    return `${y}/${mo}/${d} ${h}:${mi}`;
-  },
-};
+interface SlashEntry {
+  trigger: string;
+  template: string;
+}
 
-// Build a regex that matches any slash command at the end of input
-const slashCmdNames = Object.keys(SLASH_COMMANDS).map((s) => s.replace("/", "\\/"));
-const SLASH_RE = new RegExp(`(${slashCmdNames.join("|")})$`);
+// Global mutable store — updated from React via setSlashCommands()
+let _slashEntries: SlashEntry[] = [
+  { trigger: "/time", template: "{MM}{DD}{HH}{mm}" },
+];
+
+export function setSlashCommands(entries: SlashEntry[]) {
+  _slashEntries = entries;
+}
+
+function expandTemplate(template: string): string {
+  const now = new Date();
+  const map: Record<string, string> = {
+    "{YYYY}": String(now.getFullYear()),
+    "{YY}": String(now.getFullYear()).slice(-2),
+    "{M}": String(now.getMonth() + 1),
+    "{MM}": String(now.getMonth() + 1).padStart(2, "0"),
+    "{D}": String(now.getDate()),
+    "{DD}": String(now.getDate()).padStart(2, "0"),
+    "{H}": String(now.getHours()),
+    "{HH}": String(now.getHours()).padStart(2, "0"),
+    "{h}": String(now.getHours() % 12 || 12),
+    "{hh}": String(now.getHours() % 12 || 12).padStart(2, "0"),
+    "{m}": String(now.getMinutes()),
+    "{mm}": String(now.getMinutes()).padStart(2, "0"),
+    "{s}": String(now.getSeconds()),
+    "{ss}": String(now.getSeconds()).padStart(2, "0"),
+    "{A}": now.getHours() >= 12 ? "PM" : "AM",
+    "{a}": now.getHours() >= 12 ? "pm" : "am",
+    "{W}": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][now.getDay()],
+  };
+  let result = template;
+  for (const [token, value] of Object.entries(map)) {
+    result = result.split(token).join(value);
+  }
+  return result;
+}
 
 export const todoSlashCommands = EditorView.updateListener.of((update) => {
   if (!update.docChanged) return;
 
-  // Check each changed range
   update.transactions.forEach((tr) => {
     if (!tr.docChanged) return;
 
     const { state } = update;
     const pos = state.selection.main.head;
-    // Look back from cursor to find a slash command
     const lineObj = state.doc.lineAt(pos);
     const textBefore = lineObj.text.slice(0, pos - lineObj.from);
 
-    const match = textBefore.match(SLASH_RE);
-    if (!match) return;
+    // Try each registered slash command
+    for (const entry of _slashEntries) {
+      if (!textBefore.endsWith(entry.trigger)) continue;
 
-    const cmd = match[1];
-    const handler = SLASH_COMMANDS[cmd];
-    if (!handler) return;
+      const replacement = expandTemplate(entry.template);
+      const cmdFrom = lineObj.from + textBefore.length - entry.trigger.length;
+      const cmdTo = cmdFrom + entry.trigger.length;
 
-    const replacement = handler();
-    const cmdFrom = lineObj.from + match.index!;
-    const cmdTo = cmdFrom + cmd.length;
-
-    // Use requestAnimationFrame to avoid dispatching inside an update
-    requestAnimationFrame(() => {
-      update.view.dispatch({
-        changes: { from: cmdFrom, to: cmdTo, insert: replacement },
-        selection: { anchor: cmdFrom + replacement.length },
+      requestAnimationFrame(() => {
+        update.view.dispatch({
+          changes: { from: cmdFrom, to: cmdTo, insert: replacement },
+          selection: { anchor: cmdFrom + replacement.length },
+        });
       });
-    });
+      break; // only first match
+    }
   });
 });

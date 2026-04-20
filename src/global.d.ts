@@ -50,6 +50,11 @@ declare global {
       quickEntryHide: () => Promise<void>;
       onQuickEntryShow: (cb: () => void) => () => void;
       onTaskAppended: (cb: (task: string) => void) => () => void;
+
+      // System settings
+      systemGetSettings: () => Promise<{ autoLaunch: boolean; minimizeToTray: boolean }>;
+      systemSetAutoLaunch: (enabled: boolean) => Promise<boolean>;
+      systemSetMinimizeToTray: (enabled: boolean) => Promise<boolean>;
     };
   }
 }
