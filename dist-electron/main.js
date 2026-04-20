@@ -26,99 +26,39 @@ function saveSystemSettings(s) {
   fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2), "utf-8");
 }
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
+const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1e3;
+const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1e3;
+let completedTaskCleanupTimer = null;
 const activeReminders = /* @__PURE__ */ new Map();
-function sendNativeMenuAction(action) {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    createWindow();
-  }
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  const target = mainWindow;
-  if (target.isMinimized()) target.restore();
-  target.show();
-  target.focus();
-  if (target.webContents.isLoadingMainFrame()) {
-    target.webContents.once("did-finish-load", () => {
-      target.webContents.send("nativeMenu:action", action);
+function buildFileTree(rootPath) {
+  if (!fs.existsSync(rootPath)) return null;
+  const walk = (dirPath) => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true }).filter((entry) => !entry.name.startsWith(".")).map((entry) => {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        return {
+          name: entry.name,
+          path: fullPath,
+          isDirectory: true,
+          children: walk(fullPath)
+        };
+      }
+      return {
+        name: entry.name,
+        path: fullPath,
+        isDirectory: false
+      };
     });
-    return;
-  }
-  target.webContents.send("nativeMenu:action", action);
-}
-function setupMacApplicationMenu() {
-  const template = [
-    {
-      label: electron.app.name,
-      submenu: [
-        { role: "about" },
-        { type: "separator" },
-        { role: "services" },
-        { type: "separator" },
-        { role: "hide" },
-        { role: "hideOthers" },
-        { role: "unhide" },
-        { type: "separator" },
-        { role: "quit" }
-      ]
-    },
-    {
-      label: "File",
-      submenu: [
-        { label: "New File", accelerator: "CommandOrControl+N", click: () => sendNativeMenuAction("file:new") },
-        { label: "Open File", accelerator: "CommandOrControl+O", click: () => sendNativeMenuAction("file:open") },
-        { type: "separator" },
-        { label: "Save", accelerator: "CommandOrControl+S", click: () => sendNativeMenuAction("file:save") },
-        { label: "Save As...", accelerator: "CommandOrControl+Shift+S", click: () => sendNativeMenuAction("file:saveAs") }
-      ]
-    },
-    {
-      label: "Edit",
-      submenu: [
-        { role: "undo" },
-        { role: "redo" },
-        { type: "separator" },
-        { role: "cut" },
-        { role: "copy" },
-        { role: "paste" },
-        { type: "separator" },
-        { label: "Find", accelerator: "CommandOrControl+F", click: () => sendNativeMenuAction("edit:find") },
-        { label: "Replace", accelerator: "CommandOrControl+H", click: () => sendNativeMenuAction("edit:replace") }
-      ]
-    },
-    {
-      label: "Tasks",
-      submenu: [
-        { label: "New Task", accelerator: "CommandOrControl+Enter", click: () => sendNativeMenuAction("task:new") },
-        { label: "Toggle Done", accelerator: "CommandOrControl+D", click: () => sendNativeMenuAction("task:toggleDone") },
-        { label: "Toggle Cancelled", accelerator: "Alt+C", click: () => sendNativeMenuAction("task:toggleCancelled") },
-        { type: "separator" },
-        { label: "Archive Done", accelerator: "CommandOrControl+Shift+A", click: () => sendNativeMenuAction("task:archive") }
-      ]
-    },
-    {
-      label: "Format",
-      submenu: [
-        { label: "Bold", accelerator: "CommandOrControl+B", click: () => sendNativeMenuAction("format:bold") },
-        { label: "Italic", accelerator: "CommandOrControl+I", click: () => sendNativeMenuAction("format:italic") },
-        { label: "Underline", accelerator: "CommandOrControl+U", click: () => sendNativeMenuAction("format:underline") }
-      ]
-    },
-    {
-      label: "View",
-      submenu: [
-        { label: "Toggle Widget", click: () => sendNativeMenuAction("view:widget") },
-        { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
-        { type: "separator" },
-        { role: "reload" },
-        { role: "forceReload" },
-        { role: "toggleDevTools" }
-      ]
-    },
-    {
-      label: "Window",
-      submenu: [{ role: "minimize" }, { role: "zoom" }, { role: "front" }]
-    }
-  ];
-  electron.Menu.setApplicationMenu(electron.Menu.buildFromTemplate(template));
+    return entries.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  };
+  return {
+    rootPath,
+    rootName: rootPath.split(/[\\/]/).pop() || rootPath,
+    children: walk(rootPath)
+  };
 }
 function toValidTimestamp(year, month, day, hour, minute) {
   if (month < 1 || month > 12) return null;
@@ -168,6 +108,56 @@ function extractDueTimestamp(taskText) {
 }
 function cleanTaskLabel(text) {
   return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{8}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{4}(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
+}
+function formatTaskStatusTimestamp(date = /* @__PURE__ */ new Date()) {
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${day} ${h}:${m}`;
+}
+function parseTaskStatusTimestamp(raw) {
+  const full = raw.match(/^(\d{4})[-\/.](\d{2})[-\/.](\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!full) return null;
+  return toValidTimestamp(
+    parseInt(full[1], 10),
+    parseInt(full[2], 10),
+    parseInt(full[3], 10),
+    parseInt(full[4], 10),
+    parseInt(full[5], 10)
+  );
+}
+function extractTaskStatusTimestamp(line) {
+  const match = line.match(/@(?:done|cancel(?:led)?)\(([^)]+)\)/i);
+  if (!match) return null;
+  return parseTaskStatusTimestamp(match[1].trim());
+}
+function pruneExpiredCompletedTasks(content, nowMs = Date.now()) {
+  const lines = content.split("\n");
+  const kept = [];
+  let changed = false;
+  for (const line of lines) {
+    if (/^\s*[✔✘]\s+/.test(line)) {
+      const statusTs = extractTaskStatusTimestamp(line);
+      if (statusTs && nowMs - statusTs >= COMPLETED_TASK_TTL_MS) {
+        changed = true;
+        continue;
+      }
+    }
+    kept.push(line);
+  }
+  return { content: kept.join("\n"), changed };
+}
+function cleanupExpiredCompletedTasksInFile(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  const current = fs.readFileSync(filePath, "utf-8");
+  const pruned = pruneExpiredCompletedTasks(current);
+  if (!pruned.changed) return current;
+  fs.writeFileSync(filePath, pruned.content, "utf-8");
+  syncRemindersFromContent(pruned.content, filePath);
+  broadcastUpdatedContent(pruned.content, filePath);
+  return pruned.content;
 }
 function formatReminderDueAt(ts) {
   const d = new Date(ts);
@@ -251,8 +241,7 @@ function markReminderTaskDone(reminder) {
   if (targetIndex === -1) return;
   let updated = lines[targetIndex].replace(/^(\s*)☐\s+/, "$1✔ ");
   if (!/@done\(/.test(updated)) {
-    const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-    updated += ` @done(${date})`;
+    updated += ` @done(${formatTaskStatusTimestamp()})`;
   }
   lines[targetIndex] = updated;
   const content = lines.join("\n");
@@ -567,12 +556,20 @@ electron.app.whenReady().then(() => {
   if (!registered) {
     console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
   }
+  completedTaskCleanupTimer = setInterval(() => {
+    if (!currentFilePath) return;
+    cleanupExpiredCompletedTasksInFile(currentFilePath);
+  }, COMPLETED_TASK_CLEANUP_INTERVAL_MS);
 });
 electron.app.on("before-quit", () => {
   forceQuit = true;
 });
 electron.app.on("will-quit", () => {
   electron.globalShortcut.unregisterAll();
+  if (completedTaskCleanupTimer) {
+    clearInterval(completedTaskCleanupTimer);
+    completedTaskCleanupTimer = null;
+  }
 });
 electron.app.on("window-all-closed", () => {
 });
@@ -589,7 +586,7 @@ electron.ipcMain.handle("file:open", async () => {
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   currentFilePath = result.filePaths[0];
-  const content = fs.readFileSync(currentFilePath, "utf-8");
+  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? fs.readFileSync(currentFilePath, "utf-8");
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (widgetWindow && !widgetWindow.isDestroyed()) {
     widgetWindow.webContents.send("sticker:update", content, fn);
@@ -646,11 +643,35 @@ electron.ipcMain.handle("file:new", async () => {
   syncRemindersFromContent(defaultContent, currentFilePath);
   return { path: currentFilePath, content: defaultContent };
 });
+electron.ipcMain.handle("explorer:openFolder", async () => {
+  const result = await electron.dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory"]
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return buildFileTree(result.filePaths[0]);
+});
+electron.ipcMain.handle("explorer:readDir", (_event, rootPath) => {
+  if (!rootPath) return null;
+  return buildFileTree(rootPath);
+});
+electron.ipcMain.handle("explorer:openFileByPath", (_event, filePath) => {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) return null;
+  const content = fs.readFileSync(filePath, "utf-8");
+  currentFilePath = filePath;
+  syncRemindersFromContent(content, currentFilePath);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
+    widgetWindow.webContents.send("sticker:update", content, fileName);
+  }
+  return { path: filePath, content };
+});
 electron.ipcMain.handle("file:getDefault", () => {
   const defaultPath = path.join(electron.app.getPath("documents"), "tasks.todo");
   if (fs.existsSync(defaultPath)) {
     currentFilePath = defaultPath;
-    const content = fs.readFileSync(defaultPath, "utf-8");
+    const content = cleanupExpiredCompletedTasksInFile(defaultPath) ?? fs.readFileSync(defaultPath, "utf-8");
     syncRemindersFromContent(content, currentFilePath);
     return { path: defaultPath, content };
   }
@@ -767,7 +788,7 @@ electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
   const lines = fs.readFileSync(currentFilePath, "utf-8").split("\n");
   if (lineIndex >= lines.length) return false;
   const line = lines[lineIndex];
-  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const now = formatTaskStatusTimestamp();
   if (line.includes("☐")) {
     let next = line.replace("☐", "✔");
     if (!next.includes("@done")) {
@@ -787,8 +808,33 @@ electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
   broadcastUpdatedContent(content, currentFilePath);
   return true;
 });
+electron.ipcMain.handle("sticker:addTask", (_event, text) => {
+  if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
+  const taskText = text.trim();
+  if (!taskText) return false;
+  const taskLine = `  ☐ ${taskText}`;
+  let content = fs.readFileSync(currentFilePath, "utf-8");
+  const archiveIdx = content.indexOf("\nArchive:");
+  if (archiveIdx !== -1) {
+    const before = content.slice(0, archiveIdx).trimEnd();
+    const after = content.slice(archiveIdx);
+    content = before ? `${before}
+${taskLine}${after}` : `${taskLine}${after}`;
+  } else {
+    const trimmed = content.trimEnd();
+    content = trimmed ? `${trimmed}
+${taskLine}
+` : `${taskLine}
+`;
+  }
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
 electron.ipcMain.handle("sticker:back", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
     mainWindow.restore();
     mainWindow.focus();
   }

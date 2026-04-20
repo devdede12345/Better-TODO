@@ -12,7 +12,7 @@ html, body, #root {
   height: 100%;
   overflow: hidden;
   background: transparent;
-  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+  font-family: var(--app-font-family, "JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "IBM Plex Mono", Menlo, Monaco, Consolas, ui-monospace, monospace);
 }
 
 /* Sticker container */
@@ -213,11 +213,6 @@ body.theme-light .sticker-body::-webkit-scrollbar-thumb {
 .sticker-body::-webkit-scrollbar-thumb {
   background: rgba(69, 71, 90, 0.5);
   border-radius: 2px;
-}
-
-.sticker-body.locked {
-  pointer-events: none;
-  opacity: 0.72;
 }
 
 /* Task items */
@@ -469,11 +464,83 @@ body.sticker-widget-mode .widget-task-label {
   text-overflow: ellipsis;
 }
 
+body.sticker-widget-mode .widget-quick-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.sticker-widget-mode .widget-quick-entry-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 12px;
+  padding: 6px 9px;
+  outline: none;
+}
+
+body.sticker-widget-mode .widget-quick-entry-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+body.sticker-widget-mode .widget-quick-entry-input:focus {
+  border-color: rgba(147, 197, 253, 0.7);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+body.sticker-widget-mode .widget-quick-entry-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(147, 197, 253, 0.5);
+  border-radius: 9px;
+  background: rgba(59, 130, 246, 0.2);
+  color: rgba(191, 219, 254, 0.96);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+body.sticker-widget-mode .widget-quick-entry-button:hover {
+  background: rgba(59, 130, 246, 0.3);
+}
+
 html.theme-light body.sticker-widget-mode .widget-task-button,
 body.theme-light.sticker-widget-mode .widget-task-button {
   border-color: rgba(148, 163, 184, 0.4);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.9));
   color: rgba(15, 23, 42, 0.94);
+}
+
+html.theme-light body.sticker-widget-mode .widget-quick-entry,
+body.theme-light.sticker-widget-mode .widget-quick-entry {
+  border-top-color: rgba(148, 163, 184, 0.4);
+  background: rgba(241, 245, 249, 0.72);
+}
+
+html.theme-light body.sticker-widget-mode .widget-quick-entry-input,
+body.theme-light.sticker-widget-mode .widget-quick-entry-input {
+  border-color: rgba(148, 163, 184, 0.52);
+  background: rgba(255, 255, 255, 0.96);
+  color: rgba(30, 41, 59, 0.95);
+}
+
+html.theme-light body.sticker-widget-mode .widget-quick-entry-input::placeholder,
+body.theme-light.sticker-widget-mode .widget-quick-entry-input::placeholder {
+  color: rgba(100, 116, 139, 0.8);
+}
+
+html.theme-light body.sticker-widget-mode .widget-quick-entry-button,
+body.theme-light.sticker-widget-mode .widget-quick-entry-button {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(59, 130, 246, 0.16);
+  color: rgba(30, 64, 175, 0.95);
 }
 
 html.theme-light body.sticker-widget-mode .widget-reminder-strip,

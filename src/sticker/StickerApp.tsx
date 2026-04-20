@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Lock, Unlock, X, GripVertical } from "lucide-react";
+import { Lock, Unlock, X, GripVertical, Plus } from "lucide-react";
+import { normalizeFontFamily } from "../hooks/useEditorSettings";
 
 interface StickerTask {
   text: string;
@@ -58,6 +59,7 @@ export default function StickerApp() {
   const [fileName, setFileName] = useState<string>("No file");
   const [isWidgetMode, setIsWidgetMode] = useState(false);
   const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
+  const [newTaskText, setNewTaskText] = useState("");
 
   // Apply parsed content
   const applyContent = useCallback((content: string, name?: string) => {
@@ -123,6 +125,19 @@ export default function StickerApp() {
   }, []);
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem("editor-settings");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { fontFamily?: string };
+      const fontFamily = normalizeFontFamily(parsed?.fontFamily);
+      document.documentElement.style.setProperty("--app-font-family", fontFamily);
+      document.body.style.setProperty("--app-font-family", fontFamily);
+    } catch {
+      // ignore malformed settings
+    }
+  }, []);
+
+  useEffect(() => {
     if (!isWidgetMode) {
       setNextReminder(null);
       return;
@@ -149,7 +164,7 @@ export default function StickerApp() {
 
   const handleClose = useCallback(() => {
     if (isWidgetMode) {
-      window.electronAPI?.widgetToggle?.();
+      window.electronAPI?.stickerBack?.();
       return;
     }
     window.electronAPI?.stickerToggle?.();
@@ -159,6 +174,13 @@ export default function StickerApp() {
     if (!window.electronAPI?.stickerToggleTask) return;
     await window.electronAPI.stickerToggleTask(lineIndex);
   }, []);
+
+  const handleAddTask = useCallback(async () => {
+    const text = newTaskText.trim();
+    if (!text || !window.electronAPI?.stickerAddTask) return;
+    const ok = await window.electronAPI.stickerAddTask(text);
+    if (ok) setNewTaskText("");
+  }, [newTaskText]);
 
   // Strip tag annotations for cleaner display
   const cleanText = (text: string) => {
@@ -233,7 +255,7 @@ export default function StickerApp() {
           <button
             onClick={handleToggleLock}
             className="p-1 rounded sticker-icon-button transition-colors"
-            title={locked ? "Unlock (allow interaction)" : "Lock (click-through)"}
+            title={locked ? "Unlock position" : "Lock position"}
           >
             {locked ? (
               <Lock size={12} className="text-yellow-400" />
@@ -267,7 +289,7 @@ export default function StickerApp() {
       )}
 
       {/* Task list */}
-      <div className={`sticker-body flex-1 overflow-y-auto px-3 py-2 ${locked ? "locked" : ""}`}>
+      <div className="sticker-body flex-1 overflow-y-auto px-3 py-2">
         {lines.length === 0 && (
           <div className="text-[11px] sticker-empty text-center py-8">
             No tasks loaded
@@ -289,7 +311,6 @@ export default function StickerApp() {
               <div
                 key={i}
                 className={`widget-task-button ${task.state}`}
-                style={{ marginLeft: Math.min(task.indent, 4) * 6 }}
                 title={cleaned}
               >
                 <button
@@ -327,6 +348,35 @@ export default function StickerApp() {
           );
         })}
       </div>
+
+      {isWidgetMode && (
+        <div className="widget-quick-entry sticker-handle-nodrag">
+          <input
+            type="text"
+            value={newTaskText}
+            onChange={(event) => setNewTaskText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void handleAddTask();
+              }
+            }}
+            className="widget-quick-entry-input"
+            placeholder="Add a todo..."
+            aria-label="Add a todo"
+          />
+          <button
+            type="button"
+            className="widget-quick-entry-button"
+            onClick={() => {
+              void handleAddTask();
+            }}
+            title="Add todo"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t sticker-border text-[10px] sticker-footer">

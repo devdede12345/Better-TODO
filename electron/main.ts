@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, screen, Tray, Menu, globalShortcut, nativeImage, Notification } from "electron";
 import { join } from "path";
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "fs";
 
 let mainWindow: BrowserWindow | null = null;
 let stickerWindow: BrowserWindow | null = null;
@@ -33,6 +33,20 @@ function saveSystemSettings(s: { autoLaunch: boolean; minimizeToTray: boolean })
 const REMINDER_REPEAT_MS = 5 * 60 * 1000;
 const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1000;
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1000;
+let completedTaskCleanupTimer: NodeJS.Timeout | null = null;
+
+interface FileTreeNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: FileTreeNode[];
+}
+
+interface FolderTree {
+  rootPath: string;
+  rootName: string;
+  children: FileTreeNode[];
+}
 
 interface ReminderTask {
   id: string;
@@ -45,6 +59,43 @@ interface ReminderTask {
 }
 
 const activeReminders = new Map<string, ReminderTask>();
+
+function buildFileTree(rootPath: string): FolderTree | null {
+  if (!existsSync(rootPath)) return null;
+
+  const walk = (dirPath: string): FileTreeNode[] => {
+    const entries = readdirSync(dirPath, { withFileTypes: true })
+      .filter((entry) => !entry.name.startsWith("."))
+      .map((entry) => {
+        const fullPath = join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          return {
+            name: entry.name,
+            path: fullPath,
+            isDirectory: true,
+            children: walk(fullPath),
+          } as FileTreeNode;
+        }
+
+        return {
+          name: entry.name,
+          path: fullPath,
+          isDirectory: false,
+        } as FileTreeNode;
+      });
+
+    return entries.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  return {
+    rootPath,
+    rootName: rootPath.split(/[\\/]/).pop() || rootPath,
+    children: walk(rootPath),
+  };
+}
 
 type NativeMenuAction =
   | "file:new"
@@ -933,6 +984,42 @@ ipcMain.handle("file:new", async () => {
   return { path: currentFilePath, content: defaultContent };
 });
 
+ipcMain.handle("explorer:openFolder", async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ["openDirectory"],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return buildFileTree(result.filePaths[0]);
+});
+
+ipcMain.handle("explorer:readDir", (_event, rootPath: string) => {
+  if (!rootPath) return null;
+  return buildFileTree(rootPath);
+});
+
+ipcMain.handle("explorer:openFileByPath", (_event, filePath: string) => {
+  if (!filePath || !existsSync(filePath)) return null;
+
+  const stat = statSync(filePath);
+  if (!stat.isFile()) return null;
+
+  const content = readFileSync(filePath, "utf-8");
+  currentFilePath = filePath;
+  syncRemindersFromContent(content, currentFilePath);
+
+  if (stickerWindow && !stickerWindow.isDestroyed()) {
+    const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
+    stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
+    widgetWindow.webContents.send("sticker:update", content, fileName);
+  }
+
+  return { path: filePath, content };
+});
+
 ipcMain.handle("file:getDefault", () => {
   const defaultPath = join(app.getPath("documents"), "tasks.todo");
   if (existsSync(defaultPath)) {
@@ -1099,9 +1186,35 @@ ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
   return true;
 });
 
+ipcMain.handle("sticker:addTask", (_event, text: string) => {
+  if (!currentFilePath || !existsSync(currentFilePath)) return false;
+
+  const taskText = text.trim();
+  if (!taskText) return false;
+
+  const taskLine = `  ☐ ${taskText}`;
+  let content = readFileSync(currentFilePath, "utf-8");
+  const archiveIdx = content.indexOf("\nArchive:");
+
+  if (archiveIdx !== -1) {
+    const before = content.slice(0, archiveIdx).trimEnd();
+    const after = content.slice(archiveIdx);
+    content = before ? `${before}\n${taskLine}${after}` : `${taskLine}${after}`;
+  } else {
+    const trimmed = content.trimEnd();
+    content = trimmed ? `${trimmed}\n${taskLine}\n` : `${taskLine}\n`;
+  }
+
+  writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
+
 // Back to main editor: restore main window and close sticker
 ipcMain.handle("sticker:back", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
     mainWindow.restore();
     mainWindow.focus();
   }

@@ -44,8 +44,61 @@ export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
   { trigger: "/today", template: "@today({YYYY}-{MM}-{DD})" },
 ];
 
+export const DEFAULT_FONT_FAMILY = '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "IBM Plex Mono", Menlo, Monaco, Consolas, ui-monospace, monospace';
+
+const GENERIC_FONT_FAMILIES = new Set([
+  "serif",
+  "sans-serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "system-ui",
+  "ui-serif",
+  "ui-sans-serif",
+  "ui-monospace",
+  "emoji",
+  "math",
+  "fangsong",
+]);
+
+function normalizeFontFamilyToken(token: string): string {
+  const trimmed = token.trim();
+  if (!trimmed) return "";
+
+  const quoted =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+  if (quoted) return trimmed;
+
+  const plain = trimmed.toLowerCase();
+  if (GENERIC_FONT_FAMILIES.has(plain)) return plain;
+
+  if (/\s/.test(trimmed)) return `"${trimmed}"`;
+  return trimmed;
+}
+
+export function normalizeFontFamily(value?: string): string {
+  const raw = (value || "").trim();
+  const source = raw || DEFAULT_FONT_FAMILY;
+
+  const normalized = source
+    .split(",")
+    .map(normalizeFontFamilyToken)
+    .filter(Boolean);
+
+  if (normalized.length === 0) return DEFAULT_FONT_FAMILY;
+
+  const hasGeneric = normalized.some((token) => {
+    const unquoted = token.replace(/^['"]|['"]$/g, "").toLowerCase();
+    return GENERIC_FONT_FAMILIES.has(unquoted);
+  });
+
+  if (!hasGeneric) normalized.push("monospace");
+  return normalized.join(", ");
+}
+
 const DEFAULTS: EditorSettings = {
-  fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
+  fontFamily: DEFAULT_FONT_FAMILY,
   fontSize: 14,
   lineHeight: 1.7,
   showLineNumbers: true,

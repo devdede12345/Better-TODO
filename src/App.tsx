@@ -26,7 +26,7 @@ import {
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
 import SettingsPanel from "./components/SettingsPanel";
-import { useEditorSettings } from "./hooks/useEditorSettings";
+import { useEditorSettings, normalizeFontFamily } from "./hooks/useEditorSettings";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
@@ -60,6 +60,7 @@ type NativeMenuAction =
 
 function App() {
   const { settings: editorSettings, updateSettings, resetSettings } = useEditorSettings();
+  const appFontFamily = normalizeFontFamily(editorSettings.fontFamily);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -247,6 +248,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem("theme-mode", themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--app-font-family", appFontFamily);
+    document.body.style.setProperty("--app-font-family", appFontFamily);
+  }, [appFontFamily]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -571,6 +577,17 @@ function App() {
             )}
           </div>
 
+          {/* Settings */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+              settingsOpen ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+            }`}
+            title="Settings"
+          >
+            Settings
+          </button>
+
           {/* Sticker Toggle */}
           <button
             onClick={handleWidgetToggle}
@@ -581,17 +598,6 @@ function App() {
           >
             <LayoutGrid size={12} />
             Widget
-          </button>
-
-          {/* Settings */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
-              settingsOpen ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
-            }`}
-            title="Settings"
-          >
-            Settings
           </button>
         </div>
         </div>

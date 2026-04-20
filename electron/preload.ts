@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stickerSetLocked: (locked: boolean) => ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => ipcRenderer.invoke("sticker:getLocked"),
   stickerToggleTask: (lineIndex: number) => ipcRenderer.invoke("sticker:toggleTask", lineIndex),
+  stickerAddTask: (text: string) => ipcRenderer.invoke("sticker:addTask", text),
   stickerSyncContent: (content: string, fileName: string) => ipcRenderer.send("sticker:syncContent", content, fileName),
   stickerRequestContent: () => ipcRenderer.invoke("sticker:requestContent"),
   stickerBack: () => ipcRenderer.invoke("sticker:back"),
@@ -65,6 +66,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("editor:taskAppended", handler);
     return () => ipcRenderer.removeListener("editor:taskAppended", handler);
   },
+
+  // Explorer
+  explorerOpenFolder: () => ipcRenderer.invoke("explorer:openFolder"),
+  explorerReadDir: (rootPath: string) => ipcRenderer.invoke("explorer:readDir", rootPath),
+  explorerOpenFileByPath: (filePath: string) => ipcRenderer.invoke("explorer:openFileByPath", filePath),
 
   // System settings
   systemGetSettings: () => ipcRenderer.invoke("system:getSettings"),
