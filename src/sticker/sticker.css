@@ -329,7 +329,7 @@ body.sticker-widget-mode .widget-reminder-strip.overdue {
 }
 
 body.sticker-widget-mode .widget-reminder-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -340,7 +340,7 @@ body.sticker-widget-mode .widget-reminder-label {
 body.sticker-widget-mode .widget-reminder-summary {
   min-width: 0;
   flex: 1;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.25;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
@@ -349,7 +349,7 @@ body.sticker-widget-mode .widget-reminder-summary {
 }
 
 body.sticker-widget-mode .widget-reminder-time {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: rgba(147, 197, 253, 0.95);
   font-variant-numeric: tabular-nums;

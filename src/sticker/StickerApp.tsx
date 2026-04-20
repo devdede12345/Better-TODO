@@ -256,9 +256,9 @@ export default function StickerApp() {
           <span className="widget-reminder-label">NEXT</span>
           <span
             className="widget-reminder-summary"
-            title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
+            title={nextReminder ? cleanText(nextReminder.taskText) : "No active reminders"}
           >
-            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
+            {nextReminder ? cleanText(nextReminder.taskText) : "No active reminders"}
           </span>
           <span className="widget-reminder-time">
             {nextReminder ? (nextReminder.isOverdue ? "OVERDUE" : formatCountdown(nextReminder.remainingSeconds)) : "--:--"}
