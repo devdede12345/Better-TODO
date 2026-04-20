@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
+import SettingsPanel from "./components/SettingsPanel";
+import { useEditorSettings } from "./hooks/useEditorSettings";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
@@ -38,6 +40,8 @@ interface ReminderPreview {
 }
 
 function App() {
+  const { settings: editorSettings, updateSettings, resetSettings } = useEditorSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -452,6 +456,10 @@ function App() {
                 <MenuDivider />
                 <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => dispatchEditorKey("f", true))} />
                 <MenuItem icon={<Replace size={14} />} label="Replace" shortcut={sc("Ctrl+H", "⌘+H")} onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
+                <MenuDivider />
+                <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
+                <MenuItem label="Italic" shortcut={sc("Ctrl+I", "⌘+I")} onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
+                <MenuItem label="Underline" shortcut={sc("Ctrl+U", "⌘+U")} onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
                 </div>
               </>
             )}
@@ -482,29 +490,6 @@ function App() {
             )}
           </div>
 
-          {/* Format Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setOpenMenu(openMenu === "format" ? null : "format")}
-              onMouseEnter={() => setOpenMenu("format")}
-              className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
-                openMenu === "format" ? "bg-editor-border text-editor-text" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
-              }`}
-            >
-              Format
-            </button>
-            {openMenu === "format" && (
-              <>
-                <div className="absolute top-full left-0 h-2 w-56 z-[89]" />
-                <div className={`absolute top-full left-0 mt-2 w-56 border rounded-md shadow-xl z-[90] py-1 ${menuPanelClass}`}>
-                <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
-                <MenuItem label="Italic" shortcut={sc("Ctrl+I", "⌘+I")} onClick={() => menuAction(() => dispatchEditorKey("i", true))} />
-                <MenuItem label="Underline" shortcut={sc("Ctrl+U", "⌘+U")} onClick={() => menuAction(() => dispatchEditorKey("u", true))} />
-                </div>
-              </>
-            )}
-          </div>
-
           {/* Sticker Toggle */}
           <button
             onClick={handleStickerToggle}
@@ -514,6 +499,17 @@ function App() {
             title={stickerVisible ? "Hide Sticker" : "Show Sticker"}
           >
             Sticker
+          </button>
+
+          {/* Settings */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
+              settingsOpen ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+            }`}
+            title="Settings"
+          >
+            Settings
           </button>
         </div>
         </div>
@@ -564,8 +560,18 @@ function App() {
 
       {/* Editor */}
       <div className="flex-1 overflow-hidden">
-        <TodoEditor initialContent={content} onChange={handleChange} onParsed={handleParsed} />
+        <TodoEditor initialContent={content} onChange={handleChange} onParsed={handleParsed} settings={editorSettings} />
       </div>
+
+      {/* Settings Modal */}
+      {settingsOpen && (
+        <SettingsPanel
+          settings={editorSettings}
+          onUpdate={updateSettings}
+          onReset={resetSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
 
       {/* Status Bar */}
       <div className={`flex items-center h-6 border-t border-editor-border px-4 select-none shrink-0 ${chromeBgClass}`}>
