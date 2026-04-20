@@ -89,6 +89,11 @@ const todoParser: StreamParser<TodoState> = {
       return "todo-tag-started";
     }
 
+    // @lasted tag
+    if (stream.match(/@lasted(\([^)]*\))?/)) {
+      return "todo-tag-lasted";
+    }
+
     // @today tag
     if (stream.match(/@today/)) {
       return "todo-tag-today";

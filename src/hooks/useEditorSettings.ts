@@ -23,6 +23,7 @@ const STORAGE_KEY = "editor-settings";
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
   "Toggle Done": "Ctrl+D",
   "Toggle Cancelled": "Alt+C",
+  "Toggle Started": "Ctrl+M",
   "New Task": "Ctrl+Enter",
   "Archive Done": "Ctrl+Shift+A",
   "Bold": "Ctrl+B",

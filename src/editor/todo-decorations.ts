@@ -69,6 +69,12 @@ const tagDecoMap: Record<string, Decoration> = {
   cancelled: Decoration.mark({
     attributes: { style: "color: #f38ba8; font-style: italic;" },
   }),
+  lasted: Decoration.mark({
+    attributes: { style: "color: #94e2d5; font-style: italic;" },
+  }),
+  started: Decoration.mark({
+    attributes: { style: "color: #89b4fa; font-style: italic;" },
+  }),
 };
 
 const markerDeco = Decoration.mark({
@@ -187,11 +193,11 @@ class ProjectStatsWidget extends WidgetType {
 
 // ─── Inline tag regex (matches @tag or @tag(value)) ─────────────────────────
 
-const TAG_RE = /@(critical|high|low|today|done|cancelled|canceled)(?:\([^)]*\))?/g;
+const TAG_RE = /@(critical|high|low|today|done|cancelled|canceled|started|lasted)(?:\([^)]*\))?/g;
 
 // Generic @tag (any @word not matched above) — yellow
 const GENERIC_TAG_RE = /@[\w][\w-]*(?:\([^)]*\))?/g;
-const SPECIAL_TAGS = new Set(["critical", "high", "low", "today", "done", "cancelled", "canceled", "due", "started", "est"]);
+const SPECIAL_TAGS = new Set(["critical", "high", "low", "today", "done", "cancelled", "canceled", "due", "started", "lasted", "est"]);
 const genericTagDeco = Decoration.mark({
   attributes: { style: "color: #f9e2af;" },
 });
