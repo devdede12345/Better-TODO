@@ -460,6 +460,7 @@ function App() {
           >
             {themeMode === "system" ? <Monitor size={14} className="text-editor-subtext" /> : themeMode === "light" ? <Sun size={14} className="text-editor-subtext" /> : <Moon size={14} className="text-editor-subtext" />}
           </button>
+          {!isMac && <div className="w-[140px] shrink-0" />}
         </div>
 
         {/* Dashboard */}
@@ -644,6 +645,7 @@ function App() {
             <Save size={14} className="text-editor-subtext" />
           </button>
         </div>
+        {!isMac && <div className="w-[140px] shrink-0" />}
       </div>
 
       {/* Editor */}
