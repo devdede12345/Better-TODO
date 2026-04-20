@@ -21,6 +21,7 @@ import {
   Copy,
   ClipboardPaste,
   Archive,
+  LayoutGrid,
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
@@ -39,6 +40,24 @@ interface ReminderPreview {
   isOverdue: boolean;
 }
 
+type NativeMenuAction =
+  | "file:new"
+  | "file:open"
+  | "file:save"
+  | "file:saveAs"
+  | "task:new"
+  | "task:toggleDone"
+  | "task:toggleCancelled"
+  | "task:archive"
+  | "edit:find"
+  | "edit:replace"
+  | "format:bold"
+  | "format:italic"
+  | "format:underline"
+  | "view:sticker"
+  | "view:widget"
+  | "view:themeCycle";
+
 function App() {
   const { settings: editorSettings, updateSettings, resetSettings } = useEditorSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -52,7 +71,7 @@ function App() {
   const reminderSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
-  const [stickerVisible, setStickerVisible] = useState(false);
+  const [widgetVisible, setWidgetVisible] = useState(false);
   const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
   const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">(() => {
     const saved = localStorage.getItem("theme-mode");
@@ -178,23 +197,20 @@ function App() {
     }
   }, [content]);
 
-  // Sticker toggle
-  const handleStickerToggle = useCallback(async () => {
-    if (!window.electronAPI) return;
-    const visible = await window.electronAPI.stickerToggle();
-    setStickerVisible(visible);
-    // If just opened, sync current content
+  const handleWidgetToggle = useCallback(async () => {
+    if (!window.electronAPI?.widgetToggle) return;
+    const visible = await window.electronAPI.widgetToggle();
+    setWidgetVisible(visible);
     if (visible) {
       const fn = (filePath || "Untitled").split(/[\\/]/).pop() || "Untitled";
       window.electronAPI.stickerSyncContent(content, fn);
     }
   }, [content, filePath]);
 
-  // Listen for sticker visibility changes (e.g. closed from sticker itself)
   useEffect(() => {
-    if (!window.electronAPI?.onStickerVisibility) return;
-    const cleanup = window.electronAPI.onStickerVisibility((visible) => {
-      setStickerVisible(visible);
+    if (!window.electronAPI?.onWidgetVisibility) return;
+    const cleanup = window.electronAPI.onWidgetVisibility((visible) => {
+      setWidgetVisible(visible);
     });
     return cleanup;
   }, []);
@@ -214,9 +230,8 @@ function App() {
     };
   }, []);
 
-  // Check initial sticker state
   useEffect(() => {
-    window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
+    window.electronAPI?.widgetIsVisible?.().then((v) => setWidgetVisible(v));
   }, []);
 
   useEffect(() => {
@@ -349,6 +364,72 @@ function App() {
     });
     editor.dispatchEvent(event);
   }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onNativeMenuAction) return;
+    const cleanup = window.electronAPI.onNativeMenuAction((action) => {
+      switch (action as NativeMenuAction) {
+        case "file:new":
+          void handleNew();
+          break;
+        case "file:open":
+          void handleOpen();
+          break;
+        case "file:save":
+          void handleSave();
+          break;
+        case "file:saveAs":
+          void handleSaveAs();
+          break;
+        case "task:new":
+          createNewTask();
+          break;
+        case "task:toggleDone":
+          dispatchEditorKey("d", true);
+          break;
+        case "task:toggleCancelled":
+          dispatchEditorKey("c", false, false, true);
+          break;
+        case "task:archive":
+          dispatchEditorKey("a", true, true);
+          break;
+        case "edit:find":
+          dispatchEditorKey("f", true);
+          break;
+        case "edit:replace":
+          dispatchEditorKey("h", true);
+          break;
+        case "format:bold":
+          dispatchEditorKey("b", true);
+          break;
+        case "format:italic":
+          dispatchEditorKey("i", true);
+          break;
+        case "format:underline":
+          dispatchEditorKey("u", true);
+          break;
+        case "view:sticker":
+          void handleWidgetToggle();
+          break;
+        case "view:widget":
+          void handleWidgetToggle();
+          break;
+        case "view:themeCycle":
+          cycleThemeMode();
+          break;
+      }
+    });
+    return cleanup;
+  }, [
+    handleNew,
+    handleOpen,
+    handleSave,
+    handleSaveAs,
+    createNewTask,
+    dispatchEditorKey,
+    handleWidgetToggle,
+    cycleThemeMode,
+  ]);
 
   const fileName = filePath ? filePath.split(/[\\/]/).pop() : "Untitled";
 
@@ -492,13 +573,14 @@ function App() {
 
           {/* Sticker Toggle */}
           <button
-            onClick={handleStickerToggle}
-            className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
-              stickerVisible ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+            onClick={handleWidgetToggle}
+            className={`px-2.5 py-1 text-[12px] rounded transition-colors flex items-center gap-1 ${
+              widgetVisible ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
             }`}
-            title={stickerVisible ? "Hide Sticker" : "Show Sticker"}
+            title={widgetVisible ? "Hide Widget" : "Show Widget"}
           >
-            Sticker
+            <LayoutGrid size={12} />
+            Widget
           </button>
 
           {/* Settings */}

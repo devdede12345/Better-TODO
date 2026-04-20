@@ -9,13 +9,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDefaultFile: () => ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => ipcRenderer.invoke("reminder:getNext"),
+  reminderSnoozeNext: (delayMs: number) => ipcRenderer.invoke("reminder:snoozeNext", delayMs),
+  reminderCompleteNext: () => ipcRenderer.invoke("reminder:completeNext"),
   reminderSyncDraft: (content: string) => ipcRenderer.send("reminder:syncDraft", content),
+  onNativeMenuAction: (cb: (action: string) => void) => {
+    const handler = (_event: any, action: string) => cb(action);
+    ipcRenderer.on("nativeMenu:action", handler);
+    return () => ipcRenderer.removeListener("nativeMenu:action", handler);
+  },
 
   // Sticker operations
   stickerToggle: () => ipcRenderer.invoke("sticker:toggle"),
   stickerIsVisible: () => ipcRenderer.invoke("sticker:isVisible"),
+  widgetToggle: () => ipcRenderer.invoke("widget:toggle"),
+  widgetIsVisible: () => ipcRenderer.invoke("widget:isVisible"),
   stickerSetLocked: (locked: boolean) => ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => ipcRenderer.invoke("sticker:getLocked"),
+  stickerToggleTask: (lineIndex: number) => ipcRenderer.invoke("sticker:toggleTask", lineIndex),
   stickerSyncContent: (content: string, fileName: string) => ipcRenderer.send("sticker:syncContent", content, fileName),
   stickerRequestContent: () => ipcRenderer.invoke("sticker:requestContent"),
   stickerBack: () => ipcRenderer.invoke("sticker:back"),
@@ -35,6 +45,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_event: any, visible: boolean) => cb(visible);
     ipcRenderer.on("sticker:visibility", handler);
     return () => ipcRenderer.removeListener("sticker:visibility", handler);
+  },
+  onWidgetVisibility: (cb: (visible: boolean) => void) => {
+    const handler = (_event: any, visible: boolean) => cb(visible);
+    ipcRenderer.on("widget:visibility", handler);
+    return () => ipcRenderer.removeListener("widget:visibility", handler);
   },
 
   // Quick Entry

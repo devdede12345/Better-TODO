@@ -261,50 +261,58 @@ const clickToggle = EditorView.domEventHandlers({
     const text = line.text;
     const clickOffset = pos - line.from;
 
-    // Find marker in line and check if click is on it
-    const markers = ["☐", "✔", "✘"];
-    for (const marker of markers) {
-      const idx = text.indexOf(marker);
-      if (idx === -1) continue;
-      // Marker chars are multi-byte; allow clicking within ±1 char
-      if (clickOffset >= idx && clickOffset <= idx + 2) {
-        // Prevent default to avoid cursor placement issues
-        event.preventDefault();
-        // Re-use toggleTask logic on this specific line
-        const changes: { from: number; to: number; insert: string }[] = [];
-        const now = new Date().toISOString().slice(0, 10);
+    // Only toggle when the click lands on the marker glyph itself
+    const markers = new Set(["☐", "✔", "✘"]);
+    const markerAtCursor = text[clickOffset];
+    const markerBeforeCursor = clickOffset > 0 ? text[clickOffset - 1] : "";
 
-        if (marker === "☐") {
-          // Pending -> Done
-          changes.push({ from: line.from + idx, to: line.from + idx + "☐".length, insert: "✔" });
-          if (!text.includes("@done")) {
-            changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
-          }
-        } else if (marker === "✔") {
-          // Done -> Pending (undo)
-          changes.push({ from: line.from + idx, to: line.from + idx + "✔".length, insert: "☐" });
-          const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
-          if (doneMatch) {
-            const doneIdx = line.from + text.indexOf(doneMatch[0]);
-            changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
-          }
-        } else if (marker === "✘") {
-          // Cancelled -> Pending (undo)
-          changes.push({ from: line.from + idx, to: line.from + idx + "✘".length, insert: "☐" });
-          const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
-          if (cancelMatch) {
-            const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
-            changes.push({ from: cancelIdx, to: cancelIdx + cancelMatch[0].length, insert: "" });
-          }
-        }
+    let marker = "";
+    let idx = -1;
+    if (markers.has(markerAtCursor)) {
+      marker = markerAtCursor;
+      idx = clickOffset;
+    } else if (markers.has(markerBeforeCursor)) {
+      marker = markerBeforeCursor;
+      idx = clickOffset - 1;
+    } else {
+      return false;
+    }
 
-        if (changes.length > 0) {
-          view.dispatch({ changes });
-        }
-        return true;
+    // Prevent default to avoid cursor placement issues
+    event.preventDefault();
+
+    // Re-use toggleTask logic on this specific line
+    const changes: { from: number; to: number; insert: string }[] = [];
+    const now = new Date().toISOString().slice(0, 10);
+
+    if (marker === "☐") {
+      // Pending -> Done
+      changes.push({ from: line.from + idx, to: line.from + idx + "☐".length, insert: "✔" });
+      if (!text.includes("@done")) {
+        changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
+      }
+    } else if (marker === "✔") {
+      // Done -> Pending (undo)
+      changes.push({ from: line.from + idx, to: line.from + idx + "✔".length, insert: "☐" });
+      const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
+      if (doneMatch) {
+        const doneIdx = line.from + text.indexOf(doneMatch[0]);
+        changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
+      }
+    } else if (marker === "✘") {
+      // Cancelled -> Pending (undo)
+      changes.push({ from: line.from + idx, to: line.from + idx + "✘".length, insert: "☐" });
+      const cancelMatch = text.match(/ ?@cancel(?:led)?(\([^)]*\))?/);
+      if (cancelMatch) {
+        const cancelIdx = line.from + text.indexOf(cancelMatch[0]);
+        changes.push({ from: cancelIdx, to: cancelIdx + cancelMatch[0].length, insert: "" });
       }
     }
-    return false;
+
+    if (changes.length > 0) {
+      view.dispatch({ changes });
+    }
+    return true;
   },
 });
 

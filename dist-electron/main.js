@@ -3,7 +3,7 @@ const electron = require("electron");
 const path = require("path");
 const fs = require("fs");
 let mainWindow = null;
-let stickerWindow = null;
+let widgetWindow = null;
 let quickEntryWindow = null;
 let tray = null;
 let currentFilePath = null;
@@ -27,6 +27,99 @@ function saveSystemSettings(s) {
 }
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
 const activeReminders = /* @__PURE__ */ new Map();
+function sendNativeMenuAction(action) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const target = mainWindow;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+  if (target.webContents.isLoadingMainFrame()) {
+    target.webContents.once("did-finish-load", () => {
+      target.webContents.send("nativeMenu:action", action);
+    });
+    return;
+  }
+  target.webContents.send("nativeMenu:action", action);
+}
+function setupMacApplicationMenu() {
+  const template = [
+    {
+      label: electron.app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" }
+      ]
+    },
+    {
+      label: "File",
+      submenu: [
+        { label: "New File", accelerator: "CommandOrControl+N", click: () => sendNativeMenuAction("file:new") },
+        { label: "Open File", accelerator: "CommandOrControl+O", click: () => sendNativeMenuAction("file:open") },
+        { type: "separator" },
+        { label: "Save", accelerator: "CommandOrControl+S", click: () => sendNativeMenuAction("file:save") },
+        { label: "Save As...", accelerator: "CommandOrControl+Shift+S", click: () => sendNativeMenuAction("file:saveAs") }
+      ]
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { type: "separator" },
+        { label: "Find", accelerator: "CommandOrControl+F", click: () => sendNativeMenuAction("edit:find") },
+        { label: "Replace", accelerator: "CommandOrControl+H", click: () => sendNativeMenuAction("edit:replace") }
+      ]
+    },
+    {
+      label: "Tasks",
+      submenu: [
+        { label: "New Task", accelerator: "CommandOrControl+Enter", click: () => sendNativeMenuAction("task:new") },
+        { label: "Toggle Done", accelerator: "CommandOrControl+D", click: () => sendNativeMenuAction("task:toggleDone") },
+        { label: "Toggle Cancelled", accelerator: "Alt+C", click: () => sendNativeMenuAction("task:toggleCancelled") },
+        { type: "separator" },
+        { label: "Archive Done", accelerator: "CommandOrControl+Shift+A", click: () => sendNativeMenuAction("task:archive") }
+      ]
+    },
+    {
+      label: "Format",
+      submenu: [
+        { label: "Bold", accelerator: "CommandOrControl+B", click: () => sendNativeMenuAction("format:bold") },
+        { label: "Italic", accelerator: "CommandOrControl+I", click: () => sendNativeMenuAction("format:italic") },
+        { label: "Underline", accelerator: "CommandOrControl+U", click: () => sendNativeMenuAction("format:underline") }
+      ]
+    },
+    {
+      label: "View",
+      submenu: [
+        { label: "Toggle Widget", click: () => sendNativeMenuAction("view:widget") },
+        { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" }
+      ]
+    },
+    {
+      label: "Window",
+      submenu: [{ role: "minimize" }, { role: "zoom" }, { role: "front" }]
+    }
+  ];
+  electron.Menu.setApplicationMenu(electron.Menu.buildFromTemplate(template));
+}
 function toValidTimestamp(year, month, day, hour, minute) {
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
@@ -125,8 +218,8 @@ function broadcastUpdatedContent(content, filePath) {
     mainWindow.webContents.send("editor:taskAppended", content);
   }
   const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content, fileName);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 }
 function markReminderTaskDone(reminder) {
@@ -174,13 +267,17 @@ function scheduleReminder(reminderId, dueAt) {
     fireReminder(reminderId);
   }, delayMs);
 }
-function getNextReminderPreview() {
+function getNextReminderTask() {
   let next = null;
   for (const reminder of activeReminders.values()) {
     if (!next || reminder.dueAt < next.dueAt) {
       next = reminder;
     }
   }
+  return next;
+}
+function getNextReminderPreview() {
+  const next = getNextReminderTask();
   if (!next) return null;
   const deltaMs = next.dueAt - Date.now();
   const remainingSeconds = Math.max(0, Math.ceil(deltaMs / 1e3));
@@ -195,10 +292,6 @@ function getNextReminderPreview() {
 }
 function showReminderNotification(reminder) {
   let handled = false;
-  const onCancel = () => {
-    handled = true;
-    removeReminder(reminder.id);
-  };
   const onComplete = () => {
     handled = true;
     removeReminder(reminder.id);
@@ -210,13 +303,12 @@ function showReminderNotification(reminder) {
       title: "任务提醒",
       message: reminder.projectName,
       detail: cleanTaskLabel(reminder.taskText),
-      buttons: ["取消提醒", "已完成", "稍后提醒"],
-      defaultId: 2,
-      cancelId: 2
+      buttons: ["已完成", "稍后提醒"],
+      defaultId: 1,
+      cancelId: 1
     };
     const result = mainWindow ? electron.dialog.showMessageBoxSync(mainWindow, fallbackOptions) : electron.dialog.showMessageBoxSync(fallbackOptions);
-    if (result === 0) onCancel();
-    else if (result === 1) onComplete();
+    if (result === 0) onComplete();
     if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     return;
   }
@@ -225,15 +317,18 @@ function showReminderNotification(reminder) {
     body: `${cleanTaskLabel(reminder.taskText)}
 截止时间已到`,
     actions: [
-      { type: "button", text: "取消提醒" },
-      { type: "button", text: "已完成" }
+      { type: "button", text: "已完成" },
+      { type: "button", text: "稍后提醒" }
     ],
-    closeButtonText: "稍后提醒",
+    closeButtonText: "关闭",
     silent: false
   });
   notification.on("action", (_event, index) => {
-    if (index === 0) onCancel();
-    else if (index === 1) onComplete();
+    if (index === 0) onComplete();
+    else if (index === 1) {
+      handled = true;
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    }
   });
   notification.on("click", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -306,26 +401,27 @@ function createWindow() {
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
-    if (stickerWindow && !stickerWindow.isDestroyed()) {
-      stickerWindow.close();
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.close();
     }
   });
 }
-function createStickerWindow() {
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.focus();
+function createWidgetWindow() {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.focus();
     return;
   }
   const { width: screenW, height: screenH } = electron.screen.getPrimaryDisplay().workAreaSize;
-  stickerWindow = new electron.BrowserWindow({
-    width: 320,
-    height: 480,
-    x: screenW - 340,
-    y: screenH - 520,
+  widgetWindow = new electron.BrowserWindow({
+    width: 360,
+    height: 420,
+    x: screenW - 380,
+    y: screenH - 460,
     frame: false,
     alwaysOnTop: true,
     transparent: true,
-    resizable: true,
+    resizable: false,
+    fullscreenable: false,
     skipTaskbar: true,
     hasShadow: isMac ? true : false,
     backgroundColor: "#00000000",
@@ -337,24 +433,29 @@ function createStickerWindow() {
       nodeIntegration: false
     }
   });
-  if (process.env.VITE_DEV_SERVER_URL) {
-    stickerWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html");
-  } else {
-    stickerWindow.loadFile(path.join(__dirname, "../dist/sticker.html"));
+  if (isMac) {
+    widgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   }
-  stickerWindow.webContents.on("did-finish-load", () => {
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html?widget=1");
+  } else {
+    widgetWindow.loadFile(path.join(__dirname, "../dist/sticker.html"), {
+      query: { widget: "1" }
+    });
+  }
+  widgetWindow.webContents.on("did-finish-load", () => {
     if (currentFilePath && fs.existsSync(currentFilePath)) {
       const content = fs.readFileSync(currentFilePath, "utf-8");
       const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
-      stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:update", content, fileName);
+      widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:update", content, fileName);
     }
-    stickerWindow == null ? void 0 : stickerWindow.webContents.send("sticker:lockState", stickerLocked);
+    widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:lockState", stickerLocked);
   });
-  stickerWindow.on("closed", () => {
-    stickerWindow = null;
-    mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", false);
+  widgetWindow.on("closed", () => {
+    widgetWindow = null;
+    mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", false);
   });
-  mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", true);
+  mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", true);
 }
 function createQuickEntryWindow() {
   if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
@@ -477,8 +578,8 @@ electron.ipcMain.handle("file:open", async () => {
   currentFilePath = result.filePaths[0];
   const content = fs.readFileSync(currentFilePath, "utf-8");
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content, fn);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
   }
   syncRemindersFromContent(content, currentFilePath);
   return { path: currentFilePath, content };
@@ -497,8 +598,8 @@ electron.ipcMain.handle("file:save", async (_event, content) => {
   }
   fs.writeFileSync(currentFilePath, content, "utf-8");
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content, fn);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
   }
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
@@ -592,6 +693,20 @@ Archive:
 });
 electron.ipcMain.handle("file:getCurrentPath", () => currentFilePath);
 electron.ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
+electron.ipcMain.handle("reminder:snoozeNext", (_event, delayMs) => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return false;
+  scheduleReminder(next.id, Date.now() + delayMs);
+  return true;
+});
+electron.ipcMain.handle("reminder:completeNext", () => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  removeReminder(next.id);
+  markReminderTaskDone(next);
+  return true;
+});
 electron.ipcMain.handle("sticker:requestContent", () => {
   if (currentFilePath && fs.existsSync(currentFilePath)) {
     const content = fs.readFileSync(currentFilePath, "utf-8");
@@ -601,47 +716,77 @@ electron.ipcMain.handle("sticker:requestContent", () => {
   return null;
 });
 electron.ipcMain.handle("sticker:toggle", () => {
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.close();
-    stickerWindow = null;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.restore();
-      mainWindow.focus();
-    }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
     return false;
-  } else {
-    createStickerWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.minimize();
-    }
-    return true;
   }
+  createWidgetWindow();
+  return true;
 });
 electron.ipcMain.handle("sticker:isVisible", () => {
-  return stickerWindow !== null && !stickerWindow.isDestroyed();
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
+});
+electron.ipcMain.handle("widget:toggle", () => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+    return false;
+  }
+  createWidgetWindow();
+  return true;
+});
+electron.ipcMain.handle("widget:isVisible", () => {
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
 });
 electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
   stickerLocked = locked;
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.setIgnoreMouseEvents(false);
-    stickerWindow.webContents.send("sticker:lockState", locked);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.setIgnoreMouseEvents(false);
+    widgetWindow.webContents.send("sticker:lockState", locked);
   }
   return locked;
 });
 electron.ipcMain.handle("sticker:getLocked", () => stickerLocked);
+electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
+  if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+  const lines = fs.readFileSync(currentFilePath, "utf-8").split("\n");
+  if (lineIndex >= lines.length) return false;
+  const line = lines[lineIndex];
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  if (line.includes("☐")) {
+    let next = line.replace("☐", "✔");
+    if (!next.includes("@done")) {
+      next += ` @done(${now})`;
+    }
+    lines[lineIndex] = next;
+  } else if (line.includes("✔")) {
+    lines[lineIndex] = line.replace("✔", "☐").replace(/ ?@done(\([^)]*\))?/g, "");
+  } else if (line.includes("✘")) {
+    lines[lineIndex] = line.replace("✘", "☐").replace(/ ?@cancel(?:led)?(\([^)]*\))?/g, "");
+  } else {
+    return false;
+  }
+  const content = lines.join("\n");
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
 electron.ipcMain.handle("sticker:back", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.restore();
     mainWindow.focus();
   }
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.close();
-    stickerWindow = null;
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
   }
 });
 electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.webContents.send("sticker:update", content, fileName);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 });
 electron.ipcMain.on("reminder:syncDraft", (_event, content) => {
@@ -674,8 +819,8 @@ electron.ipcMain.handle("quickentry:submit", (_event, text) => {
       mainWindow.webContents.send("editor:taskAppended", content);
     }
     const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
-    if (stickerWindow && !stickerWindow.isDestroyed()) {
-      stickerWindow.webContents.send("sticker:update", content, fn);
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.webContents.send("sticker:update", content, fn);
     }
   }
   if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {

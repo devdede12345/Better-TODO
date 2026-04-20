@@ -24,19 +24,26 @@ declare global {
       getDefaultFile: () => Promise<FileResult>;
       getCurrentPath: () => Promise<string | null>;
       getNextReminder: () => Promise<ReminderPreview | null>;
+      reminderSnoozeNext: (delayMs: number) => Promise<boolean>;
+      reminderCompleteNext: () => Promise<boolean>;
       reminderSyncDraft: (content: string) => void;
+      onNativeMenuAction: (cb: (action: string) => void) => () => void;
 
       // Sticker
       stickerToggle: () => Promise<boolean>;
       stickerIsVisible: () => Promise<boolean>;
+      widgetToggle: () => Promise<boolean>;
+      widgetIsVisible: () => Promise<boolean>;
       stickerSetLocked: (locked: boolean) => Promise<boolean>;
       stickerGetLocked: () => Promise<boolean>;
+      stickerToggleTask: (lineIndex: number) => Promise<boolean>;
       stickerSyncContent: (content: string, fileName: string) => void;
       stickerRequestContent: () => Promise<{ content: string; fileName: string } | null>;
       stickerBack: () => Promise<void>;
       onStickerUpdate: (cb: (content: string, fileName: string) => void) => () => void;
       onStickerLockState: (cb: (locked: boolean) => void) => () => void;
       onStickerVisibility: (cb: (visible: boolean) => void) => () => void;
+      onWidgetVisibility: (cb: (visible: boolean) => void) => () => void;
 
       // Quick Entry
       quickEntrySubmit: (text: string) => Promise<void>;

@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 
 let mainWindow: BrowserWindow | null = null;
 let stickerWindow: BrowserWindow | null = null;
+let widgetWindow: BrowserWindow | null = null;
 let quickEntryWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentFilePath: string | null = null;
@@ -42,6 +43,123 @@ interface ReminderTask {
 }
 
 const activeReminders = new Map<string, ReminderTask>();
+
+type NativeMenuAction =
+  | "file:new"
+  | "file:open"
+  | "file:save"
+  | "file:saveAs"
+  | "task:new"
+  | "task:toggleDone"
+  | "task:toggleCancelled"
+  | "task:archive"
+  | "edit:find"
+  | "edit:replace"
+  | "format:bold"
+  | "format:italic"
+  | "format:underline"
+  | "view:sticker"
+  | "view:widget"
+  | "view:themeCycle";
+
+function sendNativeMenuAction(action: NativeMenuAction) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const target = mainWindow;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+
+  if (target.webContents.isLoadingMainFrame()) {
+    target.webContents.once("did-finish-load", () => {
+      target.webContents.send("nativeMenu:action", action);
+    });
+    return;
+  }
+
+  target.webContents.send("nativeMenu:action", action);
+}
+
+function setupMacApplicationMenu() {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
+    {
+      label: "File",
+      submenu: [
+        { label: "New File", accelerator: "CommandOrControl+N", click: () => sendNativeMenuAction("file:new") },
+        { label: "Open File", accelerator: "CommandOrControl+O", click: () => sendNativeMenuAction("file:open") },
+        { type: "separator" },
+        { label: "Save", accelerator: "CommandOrControl+S", click: () => sendNativeMenuAction("file:save") },
+        { label: "Save As...", accelerator: "CommandOrControl+Shift+S", click: () => sendNativeMenuAction("file:saveAs") },
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { type: "separator" },
+        { label: "Find", accelerator: "CommandOrControl+F", click: () => sendNativeMenuAction("edit:find") },
+        { label: "Replace", accelerator: "CommandOrControl+H", click: () => sendNativeMenuAction("edit:replace") },
+      ],
+    },
+    {
+      label: "Tasks",
+      submenu: [
+        { label: "New Task", accelerator: "CommandOrControl+Enter", click: () => sendNativeMenuAction("task:new") },
+        { label: "Toggle Done", accelerator: "CommandOrControl+D", click: () => sendNativeMenuAction("task:toggleDone") },
+        { label: "Toggle Cancelled", accelerator: "Alt+C", click: () => sendNativeMenuAction("task:toggleCancelled") },
+        { type: "separator" },
+        { label: "Archive Done", accelerator: "CommandOrControl+Shift+A", click: () => sendNativeMenuAction("task:archive") },
+      ],
+    },
+    {
+      label: "Format",
+      submenu: [
+        { label: "Bold", accelerator: "CommandOrControl+B", click: () => sendNativeMenuAction("format:bold") },
+        { label: "Italic", accelerator: "CommandOrControl+I", click: () => sendNativeMenuAction("format:italic") },
+        { label: "Underline", accelerator: "CommandOrControl+U", click: () => sendNativeMenuAction("format:underline") },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        { label: "Toggle Widget", click: () => sendNativeMenuAction("view:widget") },
+        { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "forceReload" },
+        { role: "toggleDevTools" },
+      ],
+    },
+    {
+      label: "Window",
+      submenu: [{ role: "minimize" }, { role: "zoom" }, { role: "front" }],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 function toValidTimestamp(year: number, month: number, day: number, hour: number, minute: number): number | null {
   if (month < 1 || month > 12) return null;
@@ -175,6 +293,9 @@ function broadcastUpdatedContent(content: string, filePath: string) {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
   }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
+  }
 }
 
 function markReminderTaskDone(reminder: ReminderTask) {
@@ -229,13 +350,18 @@ function scheduleReminder(reminderId: string, dueAt: number) {
   }, delayMs);
 }
 
-function getNextReminderPreview() {
+function getNextReminderTask(): ReminderTask | null {
   let next: ReminderTask | null = null;
   for (const reminder of activeReminders.values()) {
     if (!next || reminder.dueAt < next.dueAt) {
       next = reminder;
     }
   }
+  return next;
+}
+
+function getNextReminderPreview() {
+  const next = getNextReminderTask();
   if (!next) return null;
 
   const deltaMs = next.dueAt - Date.now();
@@ -253,11 +379,6 @@ function getNextReminderPreview() {
 function showReminderNotification(reminder: ReminderTask) {
   let handled = false;
 
-  const onCancel = () => {
-    handled = true;
-    removeReminder(reminder.id);
-  };
-
   const onComplete = () => {
     handled = true;
     removeReminder(reminder.id);
@@ -270,15 +391,14 @@ function showReminderNotification(reminder: ReminderTask) {
       title: "任务提醒",
       message: reminder.projectName,
       detail: cleanTaskLabel(reminder.taskText),
-      buttons: ["取消提醒", "已完成", "稍后提醒"],
-      defaultId: 2,
-      cancelId: 2,
+      buttons: ["已完成", "稍后提醒"],
+      defaultId: 1,
+      cancelId: 1,
     };
     const result = mainWindow
       ? dialog.showMessageBoxSync(mainWindow, fallbackOptions)
       : dialog.showMessageBoxSync(fallbackOptions);
-    if (result === 0) onCancel();
-    else if (result === 1) onComplete();
+    if (result === 0) onComplete();
     if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     return;
   }
@@ -287,16 +407,19 @@ function showReminderNotification(reminder: ReminderTask) {
     title: `提醒 · ${reminder.projectName}`,
     body: `${cleanTaskLabel(reminder.taskText)}\n截止时间已到`,
     actions: [
-      { type: "button", text: "取消提醒" },
       { type: "button", text: "已完成" },
+      { type: "button", text: "稍后提醒" },
     ],
-    closeButtonText: "稍后提醒",
+    closeButtonText: "关闭",
     silent: false,
   });
 
   notification.on("action", (_event, index) => {
-    if (index === 0) onCancel();
-    else if (index === 1) onComplete();
+    if (index === 0) onComplete();
+    else if (index === 1) {
+      handled = true;
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    }
   });
 
   notification.on("click", () => {
@@ -384,6 +507,9 @@ function createWindow() {
     if (stickerWindow && !stickerWindow.isDestroyed()) {
       stickerWindow.close();
     }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.close();
+    }
   });
 }
 
@@ -440,6 +566,65 @@ function createStickerWindow() {
 
   // Notify main window sticker is visible
   mainWindow?.webContents.send("sticker:visibility", true);
+}
+
+function createWidgetWindow() {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.focus();
+    return;
+  }
+
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+
+  widgetWindow = new BrowserWindow({
+    width: 360,
+    height: 420,
+    x: screenW - 380,
+    y: screenH - 460,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: isMac ? true : false,
+    backgroundColor: "#00000000",
+    vibrancy: isMac ? "hud" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
+    webPreferences: {
+      preload: join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isMac) {
+    widgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html?widget=1");
+  } else {
+    widgetWindow.loadFile(join(__dirname, "../dist/sticker.html"), {
+      query: { widget: "1" },
+    });
+  }
+
+  widgetWindow.webContents.on("did-finish-load", () => {
+    if (currentFilePath && existsSync(currentFilePath)) {
+      const content = readFileSync(currentFilePath, "utf-8");
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      widgetWindow?.webContents.send("sticker:update", content, fileName);
+    }
+    widgetWindow?.webContents.send("sticker:lockState", stickerLocked);
+  });
+
+  widgetWindow.on("closed", () => {
+    widgetWindow = null;
+    mainWindow?.webContents.send("widget:visibility", false);
+  });
+
+  mainWindow?.webContents.send("widget:visibility", true);
 }
 
 // ─── Quick Entry Window ─────────────────────────────────────────────────────
@@ -600,6 +785,9 @@ ipcMain.handle("file:open", async () => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fn);
   }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
+  }
   syncRemindersFromContent(content, currentFilePath);
   return { path: currentFilePath, content };
 });
@@ -622,6 +810,9 @@ ipcMain.handle("file:save", async (_event, content: string) => {
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fn);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
   }
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
@@ -719,6 +910,20 @@ Archive:
 
 ipcMain.handle("file:getCurrentPath", () => currentFilePath);
 ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
+ipcMain.handle("reminder:snoozeNext", (_event, delayMs: number) => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return false;
+  scheduleReminder(next.id, Date.now() + delayMs);
+  return true;
+});
+ipcMain.handle("reminder:completeNext", () => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  removeReminder(next.id);
+  markReminderTaskDone(next);
+  return true;
+});
 
 // Sticker can request current file content directly
 ipcMain.handle("sticker:requestContent", () => {
@@ -733,27 +938,31 @@ ipcMain.handle("sticker:requestContent", () => {
 // ─── Sticker IPC ─────────────────────────────────────────────────────────────
 
 ipcMain.handle("sticker:toggle", () => {
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.close();
-    stickerWindow = null;
-    // Restore main window
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.restore();
-      mainWindow.focus();
-    }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
     return false;
-  } else {
-    createStickerWindow();
-    // Minimize main window
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.minimize();
-    }
-    return true;
   }
+  createWidgetWindow();
+  return true;
 });
 
 ipcMain.handle("sticker:isVisible", () => {
-  return stickerWindow !== null && !stickerWindow.isDestroyed();
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
+});
+
+ipcMain.handle("widget:toggle", () => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+    return false;
+  }
+  createWidgetWindow();
+  return true;
+});
+
+ipcMain.handle("widget:isVisible", () => {
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
 });
 
 ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
@@ -762,10 +971,49 @@ ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
     stickerWindow.setIgnoreMouseEvents(false);
     stickerWindow.webContents.send("sticker:lockState", locked);
   }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.setIgnoreMouseEvents(false);
+    widgetWindow.webContents.send("sticker:lockState", locked);
+  }
   return locked;
 });
 
 ipcMain.handle("sticker:getLocked", () => stickerLocked);
+
+ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
+  if (!currentFilePath || !existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+
+  const lines = readFileSync(currentFilePath, "utf-8").split("\n");
+  if (lineIndex >= lines.length) return false;
+
+  const line = lines[lineIndex];
+  const now = new Date().toISOString().slice(0, 10);
+
+  if (line.includes("☐")) {
+    let next = line.replace("☐", "✔");
+    if (!next.includes("@done")) {
+      next += ` @done(${now})`;
+    }
+    lines[lineIndex] = next;
+  } else if (line.includes("✔")) {
+    lines[lineIndex] = line
+      .replace("✔", "☐")
+      .replace(/ ?@done(\([^)]*\))?/g, "");
+  } else if (line.includes("✘")) {
+    lines[lineIndex] = line
+      .replace("✘", "☐")
+      .replace(/ ?@cancel(?:led)?(\([^)]*\))?/g, "");
+  } else {
+    return false;
+  }
+
+  const content = lines.join("\n");
+  writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
 
 // Back to main editor: restore main window and close sticker
 ipcMain.handle("sticker:back", () => {
@@ -773,9 +1021,9 @@ ipcMain.handle("sticker:back", () => {
     mainWindow.restore();
     mainWindow.focus();
   }
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.close();
-    stickerWindow = null;
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
   }
 });
 
@@ -783,6 +1031,9 @@ ipcMain.handle("sticker:back", () => {
 ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 });
 
@@ -832,6 +1083,9 @@ ipcMain.handle("quickentry:submit", (_event, text: string) => {
     const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
     if (stickerWindow && !stickerWindow.isDestroyed()) {
       stickerWindow.webContents.send("sticker:update", content, fn);
+    }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.webContents.send("sticker:update", content, fn);
     }
   }
 

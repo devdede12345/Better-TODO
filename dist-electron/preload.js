@@ -9,12 +9,22 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   getDefaultFile: () => electron.ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => electron.ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => electron.ipcRenderer.invoke("reminder:getNext"),
+  reminderSnoozeNext: (delayMs) => electron.ipcRenderer.invoke("reminder:snoozeNext", delayMs),
+  reminderCompleteNext: () => electron.ipcRenderer.invoke("reminder:completeNext"),
   reminderSyncDraft: (content) => electron.ipcRenderer.send("reminder:syncDraft", content),
+  onNativeMenuAction: (cb) => {
+    const handler = (_event, action) => cb(action);
+    electron.ipcRenderer.on("nativeMenu:action", handler);
+    return () => electron.ipcRenderer.removeListener("nativeMenu:action", handler);
+  },
   // Sticker operations
   stickerToggle: () => electron.ipcRenderer.invoke("sticker:toggle"),
   stickerIsVisible: () => electron.ipcRenderer.invoke("sticker:isVisible"),
+  widgetToggle: () => electron.ipcRenderer.invoke("widget:toggle"),
+  widgetIsVisible: () => electron.ipcRenderer.invoke("widget:isVisible"),
   stickerSetLocked: (locked) => electron.ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => electron.ipcRenderer.invoke("sticker:getLocked"),
+  stickerToggleTask: (lineIndex) => electron.ipcRenderer.invoke("sticker:toggleTask", lineIndex),
   stickerSyncContent: (content, fileName) => electron.ipcRenderer.send("sticker:syncContent", content, fileName),
   stickerRequestContent: () => electron.ipcRenderer.invoke("sticker:requestContent"),
   stickerBack: () => electron.ipcRenderer.invoke("sticker:back"),
@@ -33,6 +43,11 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_event, visible) => cb(visible);
     electron.ipcRenderer.on("sticker:visibility", handler);
     return () => electron.ipcRenderer.removeListener("sticker:visibility", handler);
+  },
+  onWidgetVisibility: (cb) => {
+    const handler = (_event, visible) => cb(visible);
+    electron.ipcRenderer.on("widget:visibility", handler);
+    return () => electron.ipcRenderer.removeListener("widget:visibility", handler);
   },
   // Quick Entry
   quickEntrySubmit: (text) => electron.ipcRenderer.invoke("quickentry:submit", text),
