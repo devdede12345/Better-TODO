@@ -43,10 +43,12 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
     (e: React.KeyboardEvent, action: string) => {
       e.preventDefault();
       e.stopPropagation();
+      // Prevent native Alt menu activation in Electron/Windows
+      e.nativeEvent?.preventDefault?.();
 
       // Ignore lone modifier keys
-      const ignoreKeys = ["Control", "Shift", "Alt", "Meta"];
-      if (ignoreKeys.includes(e.key)) return;
+      const ignoreKeys = new Set(["Control", "Shift", "Alt", "Meta"]);
+      if (ignoreKeys.has(e.key)) return;
 
       const parts: string[] = [];
       if (e.ctrlKey || e.metaKey) parts.push("Ctrl");
@@ -57,6 +59,8 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
       let key = e.key;
       if (key === " ") key = "Space";
       else if (key === "Enter") key = "Enter";
+      else if (key === "Backspace" || key === "Delete" || key === "Tab" || key === "Escape") { /* keep as-is */ }
+      else if (key.startsWith("Arrow")) { /* keep as-is, e.g. ArrowUp */ }
       else if (key.length === 1) key = key.toUpperCase();
 
       parts.push(key);
@@ -246,7 +250,7 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
                           readOnly
                           placeholder="Press keys..."
                           onKeyDown={(e) => handleShortcutKeyDown(e, action)}
-                          onBlur={() => setRecordingAction(null)}
+                          onBlur={() => { setTimeout(() => setRecordingAction(null), 150); }}
                           className="w-36 px-2 py-1 text-[11px] text-center rounded border border-editor-accent bg-editor-accent/10 text-editor-accent focus:outline-none placeholder-editor-accent/50"
                         />
                       ) : (

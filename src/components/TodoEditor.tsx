@@ -10,7 +10,7 @@ import { search, highlightSelectionMatches, searchKeymap } from "@codemirror/sea
 
 import { todoLanguage } from "../editor/todo-language";
 import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
-import { todoKeymap, todoClickToggle, todoSlashCommands, setSlashCommands } from "../editor/todo-keymap";
+import { buildTodoKeymap, todoClickToggle, todoSlashCommands, setSlashCommands } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
 import { parseTodoDocument, type ParsedDocument } from "../editor/todoParser";
 
@@ -26,6 +26,7 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
   const viewRef = useRef<EditorView | null>(null);
   const lineNumbersCompartment = useRef(new Compartment());
   const editorStyleCompartment = useRef(new Compartment());
+  const keymapCompartment = useRef(new Compartment());
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -85,8 +86,8 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
           closedText: "▸",
         }),
 
-        // Keymaps — todoKeymap first with high precedence
-        Prec.highest(todoKeymap),
+        // Keymaps — todoKeymap via compartment for dynamic rebinding
+        Prec.highest(keymapCompartment.current.of(buildTodoKeymap(settings?.shortcuts))),
         todoClickToggle,
         keymap.of([
           ...defaultKeymap,
@@ -147,6 +148,18 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
       ],
     });
   }, [settings?.fontFamily, settings?.fontSize, settings?.lineHeight, settings?.showLineNumbers]);
+
+  // Dynamically reconfigure keymap when shortcuts change
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !settings?.shortcuts) return;
+
+    view.dispatch({
+      effects: keymapCompartment.current.reconfigure(
+        buildTodoKeymap(settings.shortcuts)
+      ),
+    });
+  }, [settings?.shortcuts]);
 
   // Sync slash commands from settings to the global store
   useEffect(() => {

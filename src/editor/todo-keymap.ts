@@ -412,40 +412,58 @@ const clickToggle = EditorView.domEventHandlers({
   },
 });
 
-export const todoKeymap = keymap.of([
-  {
-    key: "Ctrl-d",
-    run: toggleDone,
-  },
-  {
-    key: "Alt-c",
-    run: toggleCancelled,
-  },
-  {
-    key: "Ctrl-m",
-    run: toggleStarted,
-  },
-  {
-    key: "Ctrl-b",
-    run: toggleBold,
-  },
-  {
-    key: "Ctrl-i",
-    run: toggleItalic,
-  },
-  {
-    key: "Ctrl-u",
-    run: toggleUnderline,
-  },
-  {
-    key: "Ctrl-Shift-a",
-    run: archiveTasks,
-  },
-  {
-    key: "Ctrl-Enter",
-    run: newTask,
-  },
-]);
+// Map action names (from settings) → handler functions
+const ACTION_HANDLERS: Record<string, (view: EditorView) => boolean> = {
+  "Toggle Done": toggleDone,
+  "Toggle Cancelled": toggleCancelled,
+  "Toggle Started": toggleStarted,
+  "New Task": newTask,
+  "Archive Done": archiveTasks,
+  "Bold": toggleBold,
+  "Italic": toggleItalic,
+  "Underline": toggleUnderline,
+};
+
+// Convert display shortcut (e.g. "Ctrl+Shift+A") to CodeMirror key format (e.g. "Ctrl-Shift-a")
+function toCodemirrorKey(display: string): string {
+  return display
+    .split("+")
+    .map((part, i, arr) => {
+      // Last part is the actual key; others are modifiers
+      if (i === arr.length - 1) {
+        // CodeMirror uses lowercase for single-char keys, but capitalized names for special keys
+        if (part.length === 1) return part.toLowerCase();
+        // Enter, Space, etc. stay as-is
+        return part;
+      }
+      // Modifiers: capitalize first letter
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join("-");
+}
+
+// Build a keymap Extension from a ShortcutMap
+export function buildTodoKeymap(shortcuts?: Record<string, string>) {
+  const defaultMap: Record<string, string> = {
+    "Toggle Done": "Ctrl-d",
+    "Toggle Cancelled": "Alt-c",
+    "Toggle Started": "Ctrl-m",
+    "New Task": "Ctrl-Enter",
+    "Archive Done": "Ctrl-Shift-a",
+    "Bold": "Ctrl-b",
+    "Italic": "Ctrl-i",
+    "Underline": "Ctrl-u",
+  };
+
+  const bindings = Object.entries(ACTION_HANDLERS).map(([action, handler]) => {
+    const key = shortcuts?.[action]
+      ? toCodemirrorKey(shortcuts[action])
+      : defaultMap[action] || "";
+    return { key, run: handler };
+  }).filter(b => b.key);
+
+  return keymap.of(bindings);
+}
 
 export const todoClickToggle = clickToggle;
 
