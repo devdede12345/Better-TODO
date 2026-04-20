@@ -11,6 +11,15 @@ interface StickerProject {
   name: string;
 }
 
+interface ReminderPreview {
+  id: string;
+  projectName: string;
+  taskText: string;
+  remainingSeconds: number;
+  dueAt: string;
+  isOverdue: boolean;
+}
+
 type StickerLine = { type: "task"; data: StickerTask } | { type: "project"; data: StickerProject };
 
 function parseStickerContent(content: string): StickerLine[] {
@@ -47,6 +56,7 @@ export default function StickerApp() {
   const [pendingCount, setPendingCount] = useState(0);
   const [fileName, setFileName] = useState<string>("No file");
   const [isWidgetMode, setIsWidgetMode] = useState(false);
+  const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
 
   // Apply parsed content
   const applyContent = useCallback((content: string, name?: string) => {
@@ -111,6 +121,25 @@ export default function StickerApp() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isWidgetMode) {
+      setNextReminder(null);
+      return;
+    }
+    let alive = true;
+    const tick = async () => {
+      if (!window.electronAPI?.getNextReminder) return;
+      const reminder = await window.electronAPI.getNextReminder();
+      if (alive) setNextReminder(reminder as ReminderPreview | null);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [isWidgetMode]);
+
   const handleToggleLock = useCallback(async () => {
     if (!window.electronAPI) return;
     const newLocked = await window.electronAPI.stickerSetLocked(!locked);
@@ -153,6 +182,19 @@ export default function StickerApp() {
     }
   };
 
+  const formatCountdown = (seconds: number) => {
+    const safe = Math.max(0, Math.floor(seconds));
+    const mins = Math.floor(safe / 60);
+    const secs = safe % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const formatDueAt = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
   return (
     <div className={`sticker-root ${isWidgetMode ? "sticker-root-widget" : ""}`}>
       {/* Header / drag handle */}
@@ -191,6 +233,23 @@ export default function StickerApp() {
           </button>
         </div>
       </div>
+
+      {isWidgetMode && (
+        <div className={`widget-reminder-strip ${nextReminder?.isOverdue ? "overdue" : ""}`}>
+          <span className="widget-reminder-label">Next</span>
+          <span
+            className="widget-reminder-task"
+            title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
+          >
+            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText}` : "No active reminders"}
+          </span>
+          <span className="widget-reminder-time">
+            {nextReminder
+              ? (nextReminder.isOverdue ? "OVERDUE" : formatCountdown(nextReminder.remainingSeconds))
+              : "--:--"}
+          </span>
+        </div>
+      )}
 
       {/* Task list */}
       <div className={`sticker-body flex-1 overflow-y-auto px-3 py-2 ${locked ? "locked" : ""}`}>

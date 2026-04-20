@@ -306,6 +306,52 @@ body.sticker-widget-mode .sticker-root-widget .sticker-task-text {
   display: none;
 }
 
+body.sticker-widget-mode .widget-reminder-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 10px 2px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.sticker-widget-mode .widget-reminder-strip.overdue {
+  border-color: rgba(248, 113, 113, 0.48);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+body.sticker-widget-mode .widget-reminder-label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+  flex-shrink: 0;
+}
+
+body.sticker-widget-mode .widget-reminder-task {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.sticker-widget-mode .widget-reminder-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(147, 197, 253, 0.95);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+body.sticker-widget-mode .widget-reminder-strip.overdue .widget-reminder-time {
+  color: rgba(252, 165, 165, 0.96);
+}
+
 body.sticker-widget-mode .widget-task-button {
   width: 100%;
   display: flex;
@@ -353,4 +399,36 @@ body.theme-light.sticker-widget-mode .widget-task-button {
   border-color: rgba(148, 163, 184, 0.4);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.9));
   color: rgba(15, 23, 42, 0.94);
+}
+
+html.theme-light body.sticker-widget-mode .widget-reminder-strip,
+body.theme-light.sticker-widget-mode .widget-reminder-strip {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html.theme-light body.sticker-widget-mode .widget-reminder-strip.overdue,
+body.theme-light.sticker-widget-mode .widget-reminder-strip.overdue {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(254, 242, 242, 0.9);
+}
+
+html.theme-light body.sticker-widget-mode .widget-reminder-label,
+body.theme-light.sticker-widget-mode .widget-reminder-label {
+  color: rgba(71, 85, 105, 0.8);
+}
+
+html.theme-light body.sticker-widget-mode .widget-reminder-task,
+body.theme-light.sticker-widget-mode .widget-reminder-task {
+  color: rgba(30, 41, 59, 0.92);
+}
+
+html.theme-light body.sticker-widget-mode .widget-reminder-time,
+body.theme-light.sticker-widget-mode .widget-reminder-time {
+  color: rgba(37, 99, 235, 0.95);
+}
+
+html.theme-light body.sticker-widget-mode .widget-reminder-strip.overdue .widget-reminder-time,
+body.theme-light.sticker-widget-mode .widget-reminder-strip.overdue .widget-reminder-time {
+  color: rgba(220, 38, 38, 0.95);
 }
