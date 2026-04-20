@@ -24,6 +24,8 @@ declare global {
       getDefaultFile: () => Promise<FileResult>;
       getCurrentPath: () => Promise<string | null>;
       getNextReminder: () => Promise<ReminderPreview | null>;
+      reminderSnoozeNext: (delayMs: number) => Promise<boolean>;
+      reminderCompleteNext: () => Promise<boolean>;
       reminderSyncDraft: (content: string) => void;
       onNativeMenuAction: (cb: (action: string) => void) => () => void;
 

@@ -252,13 +252,17 @@ function scheduleReminder(reminderId, dueAt) {
     fireReminder(reminderId);
   }, delayMs);
 }
-function getNextReminderPreview() {
+function getNextReminderTask() {
   let next = null;
   for (const reminder of activeReminders.values()) {
     if (!next || reminder.dueAt < next.dueAt) {
       next = reminder;
     }
   }
+  return next;
+}
+function getNextReminderPreview() {
+  const next = getNextReminderTask();
   if (!next) return null;
   const deltaMs = next.dueAt - Date.now();
   const remainingSeconds = Math.max(0, Math.ceil(deltaMs / 1e3));
@@ -273,10 +277,6 @@ function getNextReminderPreview() {
 }
 function showReminderNotification(reminder) {
   let handled = false;
-  const onCancel = () => {
-    handled = true;
-    removeReminder(reminder.id);
-  };
   const onComplete = () => {
     handled = true;
     removeReminder(reminder.id);
@@ -288,13 +288,12 @@ function showReminderNotification(reminder) {
       title: "任务提醒",
       message: reminder.projectName,
       detail: cleanTaskLabel(reminder.taskText),
-      buttons: ["取消提醒", "已完成", "稍后提醒"],
-      defaultId: 2,
-      cancelId: 2
+      buttons: ["已完成", "稍后提醒"],
+      defaultId: 1,
+      cancelId: 1
     };
     const result = mainWindow ? electron.dialog.showMessageBoxSync(mainWindow, fallbackOptions) : electron.dialog.showMessageBoxSync(fallbackOptions);
-    if (result === 0) onCancel();
-    else if (result === 1) onComplete();
+    if (result === 0) onComplete();
     if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     return;
   }
@@ -303,15 +302,18 @@ function showReminderNotification(reminder) {
     body: `${cleanTaskLabel(reminder.taskText)}
 截止时间已到`,
     actions: [
-      { type: "button", text: "取消提醒" },
-      { type: "button", text: "已完成" }
+      { type: "button", text: "已完成" },
+      { type: "button", text: "稍后提醒" }
     ],
-    closeButtonText: "稍后提醒",
+    closeButtonText: "关闭",
     silent: false
   });
   notification.on("action", (_event, index) => {
-    if (index === 0) onCancel();
-    else if (index === 1) onComplete();
+    if (index === 0) onComplete();
+    else if (index === 1) {
+      handled = true;
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    }
   });
   notification.on("click", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -667,6 +669,20 @@ Archive:
 });
 electron.ipcMain.handle("file:getCurrentPath", () => currentFilePath);
 electron.ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
+electron.ipcMain.handle("reminder:snoozeNext", (_event, delayMs) => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return false;
+  scheduleReminder(next.id, Date.now() + delayMs);
+  return true;
+});
+electron.ipcMain.handle("reminder:completeNext", () => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  removeReminder(next.id);
+  markReminderTaskDone(next);
+  return true;
+});
 electron.ipcMain.handle("sticker:requestContent", () => {
   if (currentFilePath && fs.existsSync(currentFilePath)) {
     const content = fs.readFileSync(currentFilePath, "utf-8");

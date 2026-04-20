@@ -332,13 +332,18 @@ function scheduleReminder(reminderId: string, dueAt: number) {
   }, delayMs);
 }
 
-function getNextReminderPreview() {
+function getNextReminderTask(): ReminderTask | null {
   let next: ReminderTask | null = null;
   for (const reminder of activeReminders.values()) {
     if (!next || reminder.dueAt < next.dueAt) {
       next = reminder;
     }
   }
+  return next;
+}
+
+function getNextReminderPreview() {
+  const next = getNextReminderTask();
   if (!next) return null;
 
   const deltaMs = next.dueAt - Date.now();
@@ -356,11 +361,6 @@ function getNextReminderPreview() {
 function showReminderNotification(reminder: ReminderTask) {
   let handled = false;
 
-  const onCancel = () => {
-    handled = true;
-    removeReminder(reminder.id);
-  };
-
   const onComplete = () => {
     handled = true;
     removeReminder(reminder.id);
@@ -373,15 +373,14 @@ function showReminderNotification(reminder: ReminderTask) {
       title: "任务提醒",
       message: reminder.projectName,
       detail: cleanTaskLabel(reminder.taskText),
-      buttons: ["取消提醒", "已完成", "稍后提醒"],
-      defaultId: 2,
-      cancelId: 2,
+      buttons: ["已完成", "稍后提醒"],
+      defaultId: 1,
+      cancelId: 1,
     };
     const result = mainWindow
       ? dialog.showMessageBoxSync(mainWindow, fallbackOptions)
       : dialog.showMessageBoxSync(fallbackOptions);
-    if (result === 0) onCancel();
-    else if (result === 1) onComplete();
+    if (result === 0) onComplete();
     if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
     return;
   }
@@ -390,16 +389,19 @@ function showReminderNotification(reminder: ReminderTask) {
     title: `提醒 · ${reminder.projectName}`,
     body: `${cleanTaskLabel(reminder.taskText)}\n截止时间已到`,
     actions: [
-      { type: "button", text: "取消提醒" },
       { type: "button", text: "已完成" },
+      { type: "button", text: "稍后提醒" },
     ],
-    closeButtonText: "稍后提醒",
+    closeButtonText: "关闭",
     silent: false,
   });
 
   notification.on("action", (_event, index) => {
-    if (index === 0) onCancel();
-    else if (index === 1) onComplete();
+    if (index === 0) onComplete();
+    else if (index === 1) {
+      handled = true;
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    }
   });
 
   notification.on("click", () => {
@@ -877,6 +879,20 @@ Archive:
 
 ipcMain.handle("file:getCurrentPath", () => currentFilePath);
 ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
+ipcMain.handle("reminder:snoozeNext", (_event, delayMs: number) => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return false;
+  scheduleReminder(next.id, Date.now() + delayMs);
+  return true;
+});
+ipcMain.handle("reminder:completeNext", () => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  removeReminder(next.id);
+  markReminderTaskDone(next);
+  return true;
+});
 
 // Sticker can request current file content directly
 ipcMain.handle("sticker:requestContent", () => {

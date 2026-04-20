@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDefaultFile: () => ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => ipcRenderer.invoke("reminder:getNext"),
+  reminderSnoozeNext: (delayMs: number) => ipcRenderer.invoke("reminder:snoozeNext", delayMs),
+  reminderCompleteNext: () => ipcRenderer.invoke("reminder:completeNext"),
   reminderSyncDraft: (content: string) => ipcRenderer.send("reminder:syncDraft", content),
   onNativeMenuAction: (cb: (action: string) => void) => {
     const handler = (_event: any, action: string) => cb(action);

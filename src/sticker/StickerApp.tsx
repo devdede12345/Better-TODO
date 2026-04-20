@@ -58,6 +58,7 @@ export default function StickerApp() {
   const [fileName, setFileName] = useState<string>("No file");
   const [isWidgetMode, setIsWidgetMode] = useState(false);
   const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
+  const [reminderMenuOpen, setReminderMenuOpen] = useState(false);
 
   // Apply parsed content
   const applyContent = useCallback((content: string, name?: string) => {
@@ -141,6 +142,19 @@ export default function StickerApp() {
     };
   }, [isWidgetMode]);
 
+  useEffect(() => {
+    if (!nextReminder) {
+      setReminderMenuOpen(false);
+    }
+  }, [nextReminder]);
+
+  useEffect(() => {
+    if (!reminderMenuOpen) return;
+    const close = () => setReminderMenuOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [reminderMenuOpen]);
+
   const handleToggleLock = useCallback(async () => {
     if (!window.electronAPI) return;
     const newLocked = await window.electronAPI.stickerSetLocked(!locked);
@@ -221,6 +235,18 @@ export default function StickerApp() {
     });
   };
 
+  const handleSnoozeNext = useCallback(async (delayMs: number) => {
+    if (!window.electronAPI?.reminderSnoozeNext) return;
+    await window.electronAPI.reminderSnoozeNext(delayMs);
+    setReminderMenuOpen(false);
+  }, []);
+
+  const handleCompleteNext = useCallback(async () => {
+    if (!window.electronAPI?.reminderCompleteNext) return;
+    await window.electronAPI.reminderCompleteNext();
+    setReminderMenuOpen(false);
+  }, []);
+
   return (
     <div className={`sticker-root ${isWidgetMode ? "sticker-root-widget" : ""}`}>
       {/* Header / drag handle */}
@@ -262,18 +288,49 @@ export default function StickerApp() {
 
       {isWidgetMode && (
         <div className={`widget-reminder-strip ${nextReminder?.isOverdue ? "overdue" : ""}`}>
-          <span className="widget-reminder-label">Next</span>
-          <span
-            className="widget-reminder-task"
-            title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
-          >
-            {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText}` : "No active reminders"}
-          </span>
-          <span className="widget-reminder-time">
-            {nextReminder
-              ? (nextReminder.isOverdue ? "OVERDUE" : formatCountdown(nextReminder.remainingSeconds))
-              : "--:--"}
-          </span>
+          <div className="widget-reminder-main">
+            <span className="widget-reminder-label">
+              {nextReminder ? `优先级 ${nextReminder.projectName} · 截止 ${formatDueAt(nextReminder.dueAt)}` : "优先级 - 截止时间"}
+            </span>
+            <span
+              className="widget-reminder-task"
+              title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
+            >
+              {nextReminder ? nextReminder.taskText : "No active reminders"}
+            </span>
+            <span className="widget-reminder-due" title={nextReminder ? `Due ${formatDueAt(nextReminder.dueAt)}` : undefined}>
+              {nextReminder
+                ? (nextReminder.isOverdue ? "⏰ 截止时间到！" : `⏰ 距离截止 ${formatCountdown(nextReminder.remainingSeconds)}`)
+                : "⏰ 暂无提醒"}
+            </span>
+          </div>
+          {nextReminder && (
+            <div className="widget-reminder-actions">
+              <button type="button" className="widget-reminder-complete-button" onClick={() => void handleCompleteNext()}>
+                已完成
+              </button>
+              <div className="widget-reminder-menu-wrap">
+                <button
+                  type="button"
+                  className="widget-reminder-menu-button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setReminderMenuOpen((v) => !v);
+                  }}
+                >
+                  稍后提醒 ▾
+                </button>
+                {reminderMenuOpen && (
+                  <div className="widget-reminder-menu" onMouseDown={(event) => event.stopPropagation()}>
+                    <button type="button" onClick={() => void handleSnoozeNext(5 * 60 * 1000)}>5 分钟后</button>
+                    <button type="button" onClick={() => void handleSnoozeNext(30 * 60 * 1000)}>30 分钟后</button>
+                    <button type="button" onClick={() => void handleSnoozeNext(60 * 60 * 1000)}>1 小时后</button>
+                    <button type="button" onClick={() => void handleSnoozeNext(3 * 60 * 60 * 1000)}>3 小时后</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

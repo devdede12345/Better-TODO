@@ -9,6 +9,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   getDefaultFile: () => electron.ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => electron.ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => electron.ipcRenderer.invoke("reminder:getNext"),
+  reminderSnoozeNext: (delayMs) => electron.ipcRenderer.invoke("reminder:snoozeNext", delayMs),
+  reminderCompleteNext: () => electron.ipcRenderer.invoke("reminder:completeNext"),
   reminderSyncDraft: (content) => electron.ipcRenderer.send("reminder:syncDraft", content),
   onNativeMenuAction: (cb) => {
     const handler = (_event, action) => cb(action);
