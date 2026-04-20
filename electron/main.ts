@@ -25,16 +25,7 @@ interface ReminderTask {
 
 const activeReminders = new Map<string, ReminderTask>();
 
-function extractDueTimestamp(taskText: string): number | null {
-  const dueMatch = taskText.match(/(?:^|\s)@(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
-  if (!dueMatch) return null;
-
-  const year = parseInt(dueMatch[1], 10);
-  const month = parseInt(dueMatch[2], 10);
-  const day = parseInt(dueMatch[3], 10);
-  const hour = parseInt(dueMatch[4], 10);
-  const minute = parseInt(dueMatch[5], 10);
-
+function toValidTimestamp(year: number, month: number, day: number, hour: number, minute: number): number | null {
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
   if (hour < 0 || hour > 23) return null;
@@ -50,14 +41,56 @@ function extractDueTimestamp(taskText: string): number | null {
   ) {
     return null;
   }
-
   return date.getTime();
+}
+
+function extractDueTimestamp(taskText: string): number | null {
+  const explicitYear = taskText.match(/(?:^|\s)@(\d{4})(?=\s|$)/);
+  const fallbackYear = explicitYear ? parseInt(explicitYear[1], 10) : new Date().getFullYear();
+
+  const fullDateMatch = taskText.match(/(?:^|\s)@(\d{4})[\/.](\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (fullDateMatch) {
+    return toValidTimestamp(
+      parseInt(fullDateMatch[1], 10),
+      parseInt(fullDateMatch[2], 10),
+      parseInt(fullDateMatch[3], 10),
+      parseInt(fullDateMatch[4], 10),
+      parseInt(fullDateMatch[5], 10)
+    );
+  }
+
+  const monthDayMatch = taskText.match(/(?:^|\s)@(\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (monthDayMatch) {
+    return toValidTimestamp(
+      fallbackYear,
+      parseInt(monthDayMatch[1], 10),
+      parseInt(monthDayMatch[2], 10),
+      parseInt(monthDayMatch[3], 10),
+      parseInt(monthDayMatch[4], 10)
+    );
+  }
+
+  const compactMatch = taskText.match(/(?:^|\s)@(\d{2})(\d{2})(\d{2})(\d{2})(?=\s|$)/);
+  if (compactMatch) {
+    return toValidTimestamp(
+      fallbackYear,
+      parseInt(compactMatch[1], 10),
+      parseInt(compactMatch[2], 10),
+      parseInt(compactMatch[3], 10),
+      parseInt(compactMatch[4], 10)
+    );
+  }
+
+  return null;
 }
 
 function cleanTaskLabel(text: string): string {
   return text
     .replace(/@est\([^)]*\)/g, "")
-    .replace(/(?:^|\s)@\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "")
+    .replace(/(?:^|\s)@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "")
+    .replace(/(?:^|\s)@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "")
+    .replace(/(?:^|\s)@\d{8}(?=\s|$)/g, "")
+    .replace(/(?:^|\s)@\d{4}(?=\s|$)/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -172,7 +205,7 @@ function scheduleReminder(reminderId: string, dueAt: number) {
   if (!reminder) return;
   reminder.dueAt = dueAt;
   clearReminderTimer(reminder);
-  const delayMs = Math.max(1000, reminder.dueAt - Date.now());
+  const delayMs = Math.max(0, reminder.dueAt - Date.now());
   reminder.timer = setTimeout(() => {
     fireReminder(reminderId);
   }, delayMs);
@@ -187,13 +220,15 @@ function getNextReminderPreview() {
   }
   if (!next) return null;
 
-  const remainingSeconds = Math.max(0, Math.ceil((next.dueAt - Date.now()) / 1000));
+  const deltaMs = next.dueAt - Date.now();
+  const remainingSeconds = Math.max(0, Math.ceil(deltaMs / 1000));
   return {
     id: next.id,
     projectName: next.projectName,
     taskText: cleanTaskLabel(next.taskText),
     remainingSeconds,
     dueAt: next.dueAt,
+    isOverdue: deltaMs <= 0,
   };
 }
 
@@ -715,6 +750,12 @@ ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) =>
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
   }
+});
+
+// Called by main renderer whenever draft content changes — keep reminder timers in sync
+ipcMain.on("reminder:syncDraft", (_event, content: string) => {
+  if (!currentFilePath) return;
+  syncRemindersFromContent(content, currentFilePath);
 });
 
 // ─── Quick Entry IPC ────────────────────────────────────────────────────────

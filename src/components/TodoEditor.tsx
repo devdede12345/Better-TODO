@@ -114,13 +114,41 @@ export default function TodoEditor({ initialContent, onChange, onParsed }: TodoE
     });
   }, []);
 
+  const createNewTask = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const { state } = view;
+    const line = state.doc.lineAt(state.selection.main.head);
+    const indent = line.text.match(/^(\s*)/)?.[1] || "";
+    const isFirstLine = line.number === 1;
+    const isLineEmpty = line.text.trim() === "";
+
+    if (isFirstLine && isLineEmpty) {
+      const insert = `${indent}☐ `;
+      view.dispatch({
+        changes: { from: line.from, to: line.to, insert },
+        selection: { anchor: line.from + insert.length },
+      });
+      return;
+    }
+
+    const insert = `\n${indent}☐ `;
+    view.dispatch({
+      changes: { from: line.to, to: line.to, insert },
+      selection: { anchor: line.to + insert.length },
+    });
+  }, []);
+
   // Expose setContent for parent use
   useEffect(() => {
     (window as any).__todoEditorSetContent = setContent;
+    (window as any).__todoEditorCreateNewTask = createNewTask;
     return () => {
       delete (window as any).__todoEditorSetContent;
+      delete (window as any).__todoEditorCreateNewTask;
     };
-  }, [setContent]);
+  }, [setContent, createNewTask]);
 
   return (
     <div

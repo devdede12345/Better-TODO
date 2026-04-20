@@ -11,6 +11,7 @@ interface ReminderPreview {
   taskText: string;
   remainingSeconds: number;
   dueAt: number;
+  isOverdue: boolean;
 }
 
 declare global {
@@ -23,6 +24,7 @@ declare global {
       getDefaultFile: () => Promise<FileResult>;
       getCurrentPath: () => Promise<string | null>;
       getNextReminder: () => Promise<ReminderPreview | null>;
+      reminderSyncDraft: (content: string) => void;
 
       // Sticker
       stickerToggle: () => Promise<boolean>;

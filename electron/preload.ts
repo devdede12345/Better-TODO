@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDefaultFile: () => ipcRenderer.invoke("file:getDefault"),
   getCurrentPath: () => ipcRenderer.invoke("file:getCurrentPath"),
   getNextReminder: () => ipcRenderer.invoke("reminder:getNext"),
+  reminderSyncDraft: (content: string) => ipcRenderer.send("reminder:syncDraft", content),
 
   // Sticker operations
   stickerToggle: () => ipcRenderer.invoke("sticker:toggle"),
