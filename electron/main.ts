@@ -9,10 +9,13 @@ let quickEntryWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentFilePath: string | null = null;
 let stickerLocked = false;
+let completedTaskCleanupTimer: NodeJS.Timeout | null = null;
 const isMac = process.platform === "darwin";
 const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
 
 const REMINDER_REPEAT_MS = 5 * 60 * 1000;
+const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1000;
+const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1000;
 
 interface ReminderTask {
   id: string;
@@ -213,6 +216,65 @@ function cleanTaskLabel(text: string): string {
     .trim();
 }
 
+function formatTaskStatusTimestamp(date = new Date()): string {
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${day} ${h}:${m}`;
+}
+
+function parseTaskStatusTimestamp(raw: string): number | null {
+  const full = raw.match(/^(\d{4})[-\/.](\d{2})[-\/.](\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!full) return null;
+
+  return toValidTimestamp(
+    parseInt(full[1], 10),
+    parseInt(full[2], 10),
+    parseInt(full[3], 10),
+    parseInt(full[4], 10),
+    parseInt(full[5], 10)
+  );
+}
+
+function extractTaskStatusTimestamp(line: string): number | null {
+  const match = line.match(/@(?:done|cancel(?:led)?)\(([^)]+)\)/i);
+  if (!match) return null;
+  return parseTaskStatusTimestamp(match[1].trim());
+}
+
+function pruneExpiredCompletedTasks(content: string, nowMs = Date.now()): { content: string; changed: boolean } {
+  const lines = content.split("\n");
+  const kept: string[] = [];
+  let changed = false;
+
+  for (const line of lines) {
+    if (/^\s*[✔✘]\s+/.test(line)) {
+      const statusTs = extractTaskStatusTimestamp(line);
+      if (statusTs && nowMs - statusTs >= COMPLETED_TASK_TTL_MS) {
+        changed = true;
+        continue;
+      }
+    }
+    kept.push(line);
+  }
+
+  return { content: kept.join("\n"), changed };
+}
+
+function cleanupExpiredCompletedTasksInFile(filePath: string): string | null {
+  if (!existsSync(filePath)) return null;
+  const current = readFileSync(filePath, "utf-8");
+  const pruned = pruneExpiredCompletedTasks(current);
+  if (!pruned.changed) return current;
+
+  writeFileSync(filePath, pruned.content, "utf-8");
+  syncRemindersFromContent(pruned.content, filePath);
+  broadcastUpdatedContent(pruned.content, filePath);
+  return pruned.content;
+}
+
 function formatReminderDueAt(ts: number): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "--/-- --:--";
@@ -313,8 +375,7 @@ function markReminderTaskDone(reminder: ReminderTask) {
 
   let updated = lines[targetIndex].replace(/^(\s*)☐\s+/, "$1✔ ");
   if (!/@done\(/.test(updated)) {
-    const date = new Date().toISOString().slice(0, 10);
-    updated += ` @done(${date})`;
+    updated += ` @done(${formatTaskStatusTimestamp()})`;
   }
   lines[targetIndex] = updated;
 
@@ -735,10 +796,19 @@ app.whenReady().then(() => {
   if (!registered) {
     console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
   }
+
+  completedTaskCleanupTimer = setInterval(() => {
+    if (!currentFilePath) return;
+    cleanupExpiredCompletedTasksInFile(currentFilePath);
+  }, COMPLETED_TASK_CLEANUP_INTERVAL_MS);
 });
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  if (completedTaskCleanupTimer) {
+    clearInterval(completedTaskCleanupTimer);
+    completedTaskCleanupTimer = null;
+  }
 });
 
 app.on("window-all-closed", () => {
@@ -763,7 +833,7 @@ ipcMain.handle("file:open", async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
 
   currentFilePath = result.filePaths[0];
-  const content = readFileSync(currentFilePath, "utf-8");
+  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileSync(currentFilePath, "utf-8");
   // Also sync to sticker
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
@@ -837,7 +907,7 @@ ipcMain.handle("file:getDefault", () => {
   const defaultPath = join(app.getPath("documents"), "tasks.todo");
   if (existsSync(defaultPath)) {
     currentFilePath = defaultPath;
-    const content = readFileSync(defaultPath, "utf-8");
+    const content = cleanupExpiredCompletedTasksInFile(defaultPath) ?? readFileSync(defaultPath, "utf-8");
     syncRemindersFromContent(content, currentFilePath);
     return { path: defaultPath, content };
   }
@@ -972,7 +1042,7 @@ ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
   if (lineIndex >= lines.length) return false;
 
   const line = lines[lineIndex];
-  const now = new Date().toISOString().slice(0, 10);
+  const now = formatTaskStatusTimestamp();
 
   if (line.includes("☐")) {
     let next = line.replace("☐", "✔");
