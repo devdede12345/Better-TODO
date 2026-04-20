@@ -25,6 +25,7 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   stickerSetLocked: (locked) => electron.ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => electron.ipcRenderer.invoke("sticker:getLocked"),
   stickerToggleTask: (lineIndex) => electron.ipcRenderer.invoke("sticker:toggleTask", lineIndex),
+  stickerAddTask: (text) => electron.ipcRenderer.invoke("sticker:addTask", text),
   stickerSyncContent: (content, fileName) => electron.ipcRenderer.send("sticker:syncContent", content, fileName),
   stickerRequestContent: () => electron.ipcRenderer.invoke("sticker:requestContent"),
   stickerBack: () => electron.ipcRenderer.invoke("sticker:back"),
@@ -62,6 +63,10 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
     electron.ipcRenderer.on("editor:taskAppended", handler);
     return () => electron.ipcRenderer.removeListener("editor:taskAppended", handler);
   },
+  // Explorer
+  explorerOpenFolder: () => electron.ipcRenderer.invoke("explorer:openFolder"),
+  explorerReadDir: (rootPath) => electron.ipcRenderer.invoke("explorer:readDir", rootPath),
+  explorerOpenFileByPath: (filePath) => electron.ipcRenderer.invoke("explorer:openFileByPath", filePath),
   // System settings
   systemGetSettings: () => electron.ipcRenderer.invoke("system:getSettings"),
   systemSetAutoLaunch: (enabled) => electron.ipcRenderer.invoke("system:setAutoLaunch", enabled),

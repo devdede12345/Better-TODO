@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { X, RotateCcw, Plus, Trash2 } from "lucide-react";
-import { type EditorSettings, type ShortcutMap, type SlashCommand, FONT_OPTIONS, DEFAULT_SHORTCUTS, DEFAULT_SLASH_COMMANDS } from "../hooks/useEditorSettings";
+import { type EditorSettings, type ShortcutMap, type SlashCommand, FONT_OPTIONS, DEFAULT_SHORTCUTS, DEFAULT_SLASH_COMMANDS, normalizeFontFamily } from "../hooks/useEditorSettings";
 
 interface SettingsPanelProps {
   settings: EditorSettings;
@@ -136,15 +136,8 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
                 ))}
               </select>
               <p className="mt-1 text-[10px] text-editor-muted">
-                Preview: <span style={{ fontFamily: settings.fontFamily }}>AaBbCc 0123</span>
+                Preview: <span style={{ fontFamily: normalizeFontFamily(settings.fontFamily) }}>AaBbCc 0123</span>
               </p>
-            </SettingRow>
-
-            <SettingRow label="Font Size">
-              <div className="flex items-center gap-3">
-                <input type="range" min={10} max={24} step={1} value={settings.fontSize} onChange={(e) => onUpdate({ fontSize: Number(e.target.value) })} className={sliderClass} />
-                <span className="text-[12px] text-editor-subtext tabular-nums w-8 text-right">{settings.fontSize}px</span>
-              </div>
             </SettingRow>
 
             <SettingRow label="Line Height">

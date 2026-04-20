@@ -14,6 +14,19 @@ interface ReminderPreview {
   isOverdue: boolean;
 }
 
+interface FileTreeNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: FileTreeNode[];
+}
+
+interface FolderTree {
+  rootPath: string;
+  rootName: string;
+  children: FileTreeNode[];
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -37,6 +50,7 @@ declare global {
       stickerSetLocked: (locked: boolean) => Promise<boolean>;
       stickerGetLocked: () => Promise<boolean>;
       stickerToggleTask: (lineIndex: number) => Promise<boolean>;
+      stickerAddTask: (text: string) => Promise<boolean>;
       stickerSyncContent: (content: string, fileName: string) => void;
       stickerRequestContent: () => Promise<{ content: string; fileName: string } | null>;
       stickerBack: () => Promise<void>;
@@ -50,6 +64,11 @@ declare global {
       quickEntryHide: () => Promise<void>;
       onQuickEntryShow: (cb: () => void) => () => void;
       onTaskAppended: (cb: (task: string) => void) => () => void;
+
+      // Explorer
+      explorerOpenFolder: () => Promise<FolderTree | null>;
+      explorerReadDir: (rootPath: string) => Promise<FolderTree | null>;
+      explorerOpenFileByPath: (filePath: string) => Promise<FileResult | null>;
 
       // System settings
       systemGetSettings: () => Promise<{ autoLaunch: boolean; minimizeToTray: boolean }>;

@@ -17,6 +17,19 @@ interface FileExplorerProps {
   onClose: () => void;
 }
 
+interface FileTreeNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: FileTreeNode[];
+}
+
+interface FolderTree {
+  rootPath: string;
+  rootName: string;
+  children: FileTreeNode[];
+}
+
 function getFileIcon(name: string) {
   const ext = name.split(".").pop()?.toLowerCase();
   if (ext === "todo" || ext === "txt" || ext === "md") {
@@ -62,7 +75,7 @@ function TreeNode({
         </button>
         {expanded && node.children && (
           <div>
-            {node.children.map((child) => (
+            {node.children.map((child: FileTreeNode) => (
               <TreeNode
                 key={child.path}
                 node={child}
@@ -210,7 +223,7 @@ export default function FileExplorer({ currentFilePath, onOpenFile, onClose }: F
               <FolderOpen size={14} className="text-editor-yellow shrink-0" />
               <span className="truncate">{folderTree.rootName}</span>
             </div>
-            {folderTree.children.map((node) => (
+            {folderTree.children.map((node: FileTreeNode) => (
               <TreeNode
                 key={node.path}
                 node={node}

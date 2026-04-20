@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { EditorState, Prec, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, highlightSpecialChars } from "@codemirror/view";
 import type { EditorSettings } from "../hooks/useEditorSettings";
+import { normalizeFontFamily } from "../hooks/useEditorSettings";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { indentOnInput, foldGutter, bracketMatching, indentUnit } from "@codemirror/language";
@@ -47,7 +48,7 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
       onParsedRef.current(parseTodoDocument(initialContent));
     }
 
-    const fontFamily = settings?.fontFamily || '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace';
+    const fontFamily = normalizeFontFamily(settings?.fontFamily);
     const fontSize = settings?.fontSize ?? 14;
     const lineHeight = settings?.lineHeight ?? 1.7;
     const showLineNumbers = settings?.showLineNumbers ?? true;
@@ -60,7 +61,9 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
         editorStyleCompartment.current.of(
           EditorView.theme({
             ".cm-editor": { fontSize: `${fontSize}px` },
-            ".cm-scroller": { fontFamily: `${fontFamily} !important`, lineHeight: String(lineHeight) },
+            ".cm-scroller": { fontFamily, lineHeight: String(lineHeight) },
+            ".cm-content": { fontFamily },
+            ".cm-gutters": { fontFamily },
           })
         ),
         highlightActiveLine(),
@@ -125,7 +128,7 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
     const view = viewRef.current;
     if (!view || !settings) return;
 
-    const fontFamily = settings.fontFamily || '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace';
+    const fontFamily = normalizeFontFamily(settings.fontFamily);
     const fontSize = settings.fontSize ?? 14;
     const lh = settings.lineHeight ?? 1.7;
     const showLN = settings.showLineNumbers ?? true;
@@ -136,7 +139,9 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
         editorStyleCompartment.current.reconfigure(
           EditorView.theme({
             ".cm-editor": { fontSize: `${fontSize}px` },
-            ".cm-scroller": { fontFamily: `${fontFamily} !important`, lineHeight: String(lh) },
+            ".cm-scroller": { fontFamily, lineHeight: String(lh) },
+            ".cm-content": { fontFamily },
+            ".cm-gutters": { fontFamily },
           })
         ),
       ],
