@@ -1,19 +1,42 @@
 import { useState, useCallback } from "react";
 
+export interface ShortcutMap {
+  [action: string]: string;
+}
+
 export interface EditorSettings {
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
   showLineNumbers: boolean;
+  shortcuts: ShortcutMap;
 }
 
 const STORAGE_KEY = "editor-settings";
+
+export const DEFAULT_SHORTCUTS: ShortcutMap = {
+  "Toggle Done": "Ctrl+D",
+  "Toggle Cancelled": "Alt+C",
+  "New Task": "Ctrl+Enter",
+  "Archive Done": "Ctrl+Shift+A",
+  "Bold": "Ctrl+B",
+  "Italic": "Ctrl+I",
+  "Underline": "Ctrl+U",
+  "Save": "Ctrl+S",
+  "Save As": "Ctrl+Shift+S",
+  "Open File": "Ctrl+O",
+  "Find": "Ctrl+F",
+  "Replace": "Ctrl+H",
+  "Undo": "Ctrl+Z",
+  "Redo": "Ctrl+Shift+Z",
+};
 
 const DEFAULTS: EditorSettings = {
   fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
   fontSize: 14,
   lineHeight: 1.7,
   showLineNumbers: true,
+  shortcuts: { ...DEFAULT_SHORTCUTS },
 };
 
 function loadSettings(): EditorSettings {

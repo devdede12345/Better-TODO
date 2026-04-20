@@ -50,4 +50,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("editor:taskAppended", handler);
     return () => ipcRenderer.removeListener("editor:taskAppended", handler);
   },
+
+  // System settings
+  systemGetSettings: () => ipcRenderer.invoke("system:getSettings"),
+  systemSetAutoLaunch: (enabled: boolean) => ipcRenderer.invoke("system:setAutoLaunch", enabled),
+  systemSetMinimizeToTray: (enabled: boolean) => ipcRenderer.invoke("system:setMinimizeToTray", enabled),
 });
