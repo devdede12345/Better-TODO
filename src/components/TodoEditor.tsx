@@ -9,7 +9,7 @@ import { search, highlightSelectionMatches, searchKeymap } from "@codemirror/sea
 
 import { todoLanguage } from "../editor/todo-language";
 import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
-import { todoKeymap, todoClickToggle, todoSlashCommands } from "../editor/todo-keymap";
+import { todoKeymap, todoClickToggle, todoSlashCommands, setSlashCommands } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
 import { parseTodoDocument, type ParsedDocument } from "../editor/todoParser";
 
@@ -142,6 +142,13 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
       ],
     });
   }, [settings?.fontFamily, settings?.fontSize, settings?.lineHeight, settings?.showLineNumbers]);
+
+  // Sync slash commands from settings to the global store
+  useEffect(() => {
+    if (settings?.slashCommands) {
+      setSlashCommands(settings.slashCommands);
+    }
+  }, [settings?.slashCommands]);
 
   // Update content if initialContent changes externally (e.g., file open)
   const setContent = useCallback((content: string) => {

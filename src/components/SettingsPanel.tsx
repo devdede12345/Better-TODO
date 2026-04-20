@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, RotateCcw } from "lucide-react";
-import { type EditorSettings, type ShortcutMap, FONT_OPTIONS, DEFAULT_SHORTCUTS } from "../hooks/useEditorSettings";
+import { X, RotateCcw, Plus, Trash2 } from "lucide-react";
+import { type EditorSettings, type ShortcutMap, type SlashCommand, FONT_OPTIONS, DEFAULT_SHORTCUTS, DEFAULT_SLASH_COMMANDS } from "../hooks/useEditorSettings";
 
 interface SettingsPanelProps {
   settings: EditorSettings;
@@ -172,6 +172,64 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
               <Toggle value={minimizeToTray} onChange={handleMinimizeToTrayToggle} />
               <p className="mt-1 text-[10px] text-editor-muted">Hide to system tray instead of quitting when closing the window</p>
             </SettingRow>
+          </div>
+
+          {/* ── Section: Custom Completions ── */}
+          <div>
+            <SectionTitle>Custom Completions</SectionTitle>
+            <p className="text-[10px] text-editor-muted mb-3">
+              Type the trigger in the editor and it auto-expands. Tokens:
+              <code className="ml-1 px-1 py-0.5 rounded bg-editor-surface text-editor-accent text-[9px]">
+                {'{YYYY}'} {'{MM}'} {'{DD}'} {'{HH}'} {'{mm}'} {'{ss}'} {'{M}'} {'{D}'} {'{H}'} {'{h}'} {'{hh}'} {'{A}'} {'{a}'} {'{W}'} {'{YY}'}
+              </code>
+            </p>
+            <div className="space-y-2">
+              {(settings.slashCommands ?? []).map((cmd, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    value={cmd.trigger}
+                    onChange={(e) => {
+                      const updated = [...(settings.slashCommands ?? [])];
+                      updated[idx] = { ...updated[idx], trigger: e.target.value };
+                      onUpdate({ slashCommands: updated });
+                    }}
+                    placeholder="/trigger"
+                    className="w-24 px-2 py-1.5 text-[11px] rounded-md border border-editor-border bg-editor-surface text-editor-text focus:outline-none focus:ring-1 focus:ring-editor-accent/50 font-mono"
+                  />
+                  <span className="text-[11px] text-editor-muted">→</span>
+                  <input
+                    value={cmd.template}
+                    onChange={(e) => {
+                      const updated = [...(settings.slashCommands ?? [])];
+                      updated[idx] = { ...updated[idx], template: e.target.value };
+                      onUpdate({ slashCommands: updated });
+                    }}
+                    placeholder="{MM}{DD}{HH}{mm}"
+                    className="flex-1 px-2 py-1.5 text-[11px] rounded-md border border-editor-border bg-editor-surface text-editor-text focus:outline-none focus:ring-1 focus:ring-editor-accent/50 font-mono"
+                  />
+                  <button
+                    onClick={() => {
+                      const updated = (settings.slashCommands ?? []).filter((_, i) => i !== idx);
+                      onUpdate({ slashCommands: updated });
+                    }}
+                    className="p-1 rounded hover:bg-editor-border/60 text-editor-muted hover:text-editor-red transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                const updated = [...(settings.slashCommands ?? []), { trigger: "/", template: "" }];
+                onUpdate({ slashCommands: updated });
+              }}
+              className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-editor-accent hover:bg-editor-accent/10 rounded-md transition-colors"
+            >
+              <Plus size={12} />
+              Add completion
+            </button>
           </div>
 
           {/* ── Section: Keyboard Shortcuts ── */}
