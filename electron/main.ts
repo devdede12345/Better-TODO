@@ -126,7 +126,6 @@ function setupMacApplicationMenu() {
     {
       label: "View",
       submenu: [
-        { label: "Toggle Sticker", click: () => sendNativeMenuAction("view:sticker") },
         { label: "Toggle Widget", click: () => sendNativeMenuAction("view:widget") },
         { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
         { type: "separator" },
@@ -892,27 +891,17 @@ ipcMain.handle("sticker:requestContent", () => {
 // ─── Sticker IPC ─────────────────────────────────────────────────────────────
 
 ipcMain.handle("sticker:toggle", () => {
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.close();
-    stickerWindow = null;
-    // Restore main window
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.restore();
-      mainWindow.focus();
-    }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
     return false;
-  } else {
-    createStickerWindow();
-    // Minimize main window
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.minimize();
-    }
-    return true;
   }
+  createWidgetWindow();
+  return true;
 });
 
 ipcMain.handle("sticker:isVisible", () => {
-  return stickerWindow !== null && !stickerWindow.isDestroyed();
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
 });
 
 ipcMain.handle("widget:toggle", () => {
@@ -944,15 +933,50 @@ ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
 
 ipcMain.handle("sticker:getLocked", () => stickerLocked);
 
+ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
+  if (!currentFilePath || !existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+
+  const lines = readFileSync(currentFilePath, "utf-8").split("\n");
+  if (lineIndex >= lines.length) return false;
+
+  const line = lines[lineIndex];
+  const now = new Date().toISOString().slice(0, 10);
+
+  if (line.includes("☐")) {
+    let next = line.replace("☐", "✔");
+    if (!next.includes("@done")) {
+      next += ` @done(${now})`;
+    }
+    lines[lineIndex] = next;
+  } else if (line.includes("✔")) {
+    lines[lineIndex] = line
+      .replace("✔", "☐")
+      .replace(/ ?@done(\([^)]*\))?/g, "");
+  } else if (line.includes("✘")) {
+    lines[lineIndex] = line
+      .replace("✘", "☐")
+      .replace(/ ?@cancel(?:led)?(\([^)]*\))?/g, "");
+  } else {
+    return false;
+  }
+
+  const content = lines.join("\n");
+  writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
+
 // Back to main editor: restore main window and close sticker
 ipcMain.handle("sticker:back", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.restore();
     mainWindow.focus();
   }
-  if (stickerWindow && !stickerWindow.isDestroyed()) {
-    stickerWindow.close();
-    stickerWindow = null;
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
   }
 });
 

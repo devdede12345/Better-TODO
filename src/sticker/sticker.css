@@ -192,6 +192,11 @@ body.theme-light .sticker-body::-webkit-scrollbar-thumb {
   min-height: 34px;
 }
 
+.sticker-handle.sticker-handle-locked {
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
 .sticker-handle-nodrag {
   -webkit-app-region: no-drag;
 }
@@ -383,6 +388,19 @@ body.sticker-widget-mode .widget-task-marker {
   text-align: center;
   font-size: 12px;
   line-height: 1;
+}
+
+body.sticker-widget-mode .widget-task-marker-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 body.sticker-widget-mode .widget-task-label {

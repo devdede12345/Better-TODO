@@ -34,6 +34,7 @@ declare global {
       widgetIsVisible: () => Promise<boolean>;
       stickerSetLocked: (locked: boolean) => Promise<boolean>;
       stickerGetLocked: () => Promise<boolean>;
+      stickerToggleTask: (lineIndex: number) => Promise<boolean>;
       stickerSyncContent: (content: string, fileName: string) => void;
       stickerRequestContent: () => Promise<{ content: string; fileName: string } | null>;
       stickerBack: () => Promise<void>;

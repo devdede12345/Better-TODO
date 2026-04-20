@@ -5,6 +5,7 @@ interface StickerTask {
   text: string;
   state: "pending" | "done" | "cancelled";
   indent: number;
+  lineIndex: number;
 }
 
 interface StickerProject {
@@ -16,7 +17,7 @@ interface ReminderPreview {
   projectName: string;
   taskText: string;
   remainingSeconds: number;
-  dueAt: string;
+  dueAt: number;
   isOverdue: boolean;
 }
 
@@ -24,7 +25,7 @@ type StickerLine = { type: "task"; data: StickerTask } | { type: "project"; data
 
 function parseStickerContent(content: string): StickerLine[] {
   const lines: StickerLine[] = [];
-  for (const raw of content.split("\n")) {
+  for (const [lineIndex, raw] of content.split("\n").entries()) {
     const trimmed = raw.trim();
     if (!trimmed) continue;
 
@@ -40,11 +41,11 @@ function parseStickerContent(content: string): StickerLine[] {
     // Tasks
     const indent = raw.search(/\S/);
     if (trimmed.startsWith("☐")) {
-      lines.push({ type: "task", data: { text: trimmed.slice(1).trim(), state: "pending", indent } });
+      lines.push({ type: "task", data: { text: trimmed.slice(1).trim(), state: "pending", indent, lineIndex } });
     } else if (trimmed.startsWith("✔")) {
-      lines.push({ type: "task", data: { text: trimmed.slice(1).trim(), state: "done", indent } });
+      lines.push({ type: "task", data: { text: trimmed.slice(1).trim(), state: "done", indent, lineIndex } });
     } else if (trimmed.startsWith("✘")) {
-      lines.push({ type: "task", data: { text: trimmed.slice(1).trim(), state: "cancelled", indent } });
+      lines.push({ type: "task", data: { text: trimmed.slice(1).trim(), state: "cancelled", indent, lineIndex } });
     }
   }
   return lines;
@@ -130,7 +131,7 @@ export default function StickerApp() {
     const tick = async () => {
       if (!window.electronAPI?.getNextReminder) return;
       const reminder = await window.electronAPI.getNextReminder();
-      if (alive) setNextReminder(reminder as ReminderPreview | null);
+      if (alive) setNextReminder(reminder);
     };
     tick();
     const timer = setInterval(tick, 1000);
@@ -147,7 +148,16 @@ export default function StickerApp() {
   }, [locked]);
 
   const handleClose = useCallback(() => {
-    window.electronAPI?.stickerToggle();
+    if (isWidgetMode) {
+      window.electronAPI?.widgetToggle?.();
+      return;
+    }
+    window.electronAPI?.stickerToggle?.();
+  }, [isWidgetMode]);
+
+  const handleToggleTask = useCallback(async (lineIndex: number) => {
+    if (!window.electronAPI?.stickerToggleTask) return;
+    await window.electronAPI.stickerToggleTask(lineIndex);
   }, []);
 
   // Strip tag annotations for cleaner display
@@ -184,21 +194,37 @@ export default function StickerApp() {
 
   const formatCountdown = (seconds: number) => {
     const safe = Math.max(0, Math.floor(seconds));
+    if (safe >= 24 * 60 * 60) {
+      const days = Math.floor(safe / (24 * 60 * 60));
+      const hours = Math.floor((safe % (24 * 60 * 60)) / 3600);
+      return `${days}d ${hours}h`;
+    }
+    if (safe >= 60 * 60) {
+      const hours = Math.floor(safe / 3600);
+      const mins = Math.floor((safe % 3600) / 60);
+      const secs = safe % 60;
+      return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
     const mins = Math.floor(safe / 60);
     const secs = safe % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const formatDueAt = (value: string) => {
+  const formatDueAt = (value: number) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleString([], {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
     <div className={`sticker-root ${isWidgetMode ? "sticker-root-widget" : ""}`}>
       {/* Header / drag handle */}
-      <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b sticker-border">
+      <div className={`sticker-handle ${locked ? "sticker-handle-locked" : ""} flex items-center justify-between px-3 py-2 border-b sticker-border`}>
         <div className="flex items-center gap-1.5 min-w-0">
           <GripVertical size={12} className="sticker-icon-muted flex-shrink-0" />
           <span className="sticker-title text-[11px] font-semibold truncate" title={fileName}>
@@ -227,7 +253,7 @@ export default function StickerApp() {
           <button
             onClick={handleClose}
             className="p-1 rounded hover:bg-red-500/30 transition-colors"
-            title="Close sticker"
+            title={isWidgetMode ? "Close widget" : "Close sticker"}
           >
             <X size={12} className="sticker-icon-muted" />
           </button>
@@ -271,18 +297,27 @@ export default function StickerApp() {
 
           if (isWidgetMode) {
             return (
-              <button
+              <div
                 key={i}
-                type="button"
                 className={`widget-task-button ${task.state}`}
                 style={{ marginLeft: Math.min(task.indent, 4) * 6 }}
                 title={cleaned}
               >
-                <span className="widget-task-marker" style={{ color: stateColor(task.state) }}>
-                  {markerChar(task.state)}
-                </span>
+                <button
+                  type="button"
+                  className="widget-task-marker-button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleToggleTask(task.lineIndex);
+                  }}
+                  title="Toggle task"
+                >
+                  <span className="widget-task-marker" style={{ color: stateColor(task.state) }}>
+                    {markerChar(task.state)}
+                  </span>
+                </button>
                 <span className="widget-task-label">{cleaned}</span>
-              </button>
+              </div>
             );
           }
 

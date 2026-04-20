@@ -22,6 +22,7 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   widgetIsVisible: () => electron.ipcRenderer.invoke("widget:isVisible"),
   stickerSetLocked: (locked) => electron.ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => electron.ipcRenderer.invoke("sticker:getLocked"),
+  stickerToggleTask: (lineIndex) => electron.ipcRenderer.invoke("sticker:toggleTask", lineIndex),
   stickerSyncContent: (content, fileName) => electron.ipcRenderer.send("sticker:syncContent", content, fileName),
   stickerRequestContent: () => electron.ipcRenderer.invoke("sticker:requestContent"),
   stickerBack: () => electron.ipcRenderer.invoke("sticker:back"),

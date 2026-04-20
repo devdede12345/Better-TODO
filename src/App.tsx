@@ -67,7 +67,6 @@ function App() {
   const reminderSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
-  const [stickerVisible, setStickerVisible] = useState(false);
   const [widgetVisible, setWidgetVisible] = useState(false);
   const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
   const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">(() => {
@@ -194,18 +193,6 @@ function App() {
     }
   }, [content]);
 
-  // Sticker toggle
-  const handleStickerToggle = useCallback(async () => {
-    if (!window.electronAPI) return;
-    const visible = await window.electronAPI.stickerToggle();
-    setStickerVisible(visible);
-    // If just opened, sync current content
-    if (visible) {
-      const fn = (filePath || "Untitled").split(/[\\/]/).pop() || "Untitled";
-      window.electronAPI.stickerSyncContent(content, fn);
-    }
-  }, [content, filePath]);
-
   const handleWidgetToggle = useCallback(async () => {
     if (!window.electronAPI?.widgetToggle) return;
     const visible = await window.electronAPI.widgetToggle();
@@ -215,15 +202,6 @@ function App() {
       window.electronAPI.stickerSyncContent(content, fn);
     }
   }, [content, filePath]);
-
-  // Listen for sticker visibility changes (e.g. closed from sticker itself)
-  useEffect(() => {
-    if (!window.electronAPI?.onStickerVisibility) return;
-    const cleanup = window.electronAPI.onStickerVisibility((visible) => {
-      setStickerVisible(visible);
-    });
-    return cleanup;
-  }, []);
 
   useEffect(() => {
     if (!window.electronAPI?.onWidgetVisibility) return;
@@ -246,11 +224,6 @@ function App() {
       alive = false;
       clearInterval(timer);
     };
-  }, []);
-
-  // Check initial sticker state
-  useEffect(() => {
-    window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
   }, []);
 
   useEffect(() => {
@@ -432,7 +405,7 @@ function App() {
           dispatchEditorKey("u", true);
           break;
         case "view:sticker":
-          void handleStickerToggle();
+          void handleWidgetToggle();
           break;
         case "view:widget":
           void handleWidgetToggle();
@@ -450,7 +423,6 @@ function App() {
     handleSaveAs,
     createNewTask,
     dispatchEditorKey,
-    handleStickerToggle,
     handleWidgetToggle,
     cycleThemeMode,
   ]);
@@ -614,16 +586,6 @@ function App() {
             )}
           </div>
 
-          {/* Sticker Toggle */}
-          <button
-            onClick={handleStickerToggle}
-            className={`px-2.5 py-1 text-[12px] rounded transition-colors ${
-              stickerVisible ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
-            }`}
-            title={stickerVisible ? "Hide Sticker" : "Show Sticker"}
-          >
-            Sticker
-          </button>
           <button
             onClick={handleWidgetToggle}
             className={`px-2.5 py-1 text-[12px] rounded transition-colors flex items-center gap-1 ${
