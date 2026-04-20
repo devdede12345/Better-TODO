@@ -21,6 +21,7 @@ import {
   Copy,
   ClipboardPaste,
   Archive,
+  LayoutGrid,
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
@@ -52,6 +53,7 @@ type NativeMenuAction =
   | "format:italic"
   | "format:underline"
   | "view:sticker"
+  | "view:widget"
   | "view:themeCycle";
 
 function App() {
@@ -66,6 +68,7 @@ function App() {
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
   const [stickerVisible, setStickerVisible] = useState(false);
+  const [widgetVisible, setWidgetVisible] = useState(false);
   const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
   const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">(() => {
     const saved = localStorage.getItem("theme-mode");
@@ -203,11 +206,29 @@ function App() {
     }
   }, [content, filePath]);
 
+  const handleWidgetToggle = useCallback(async () => {
+    if (!window.electronAPI?.widgetToggle) return;
+    const visible = await window.electronAPI.widgetToggle();
+    setWidgetVisible(visible);
+    if (visible) {
+      const fn = (filePath || "Untitled").split(/[\\/]/).pop() || "Untitled";
+      window.electronAPI.stickerSyncContent(content, fn);
+    }
+  }, [content, filePath]);
+
   // Listen for sticker visibility changes (e.g. closed from sticker itself)
   useEffect(() => {
     if (!window.electronAPI?.onStickerVisibility) return;
     const cleanup = window.electronAPI.onStickerVisibility((visible) => {
       setStickerVisible(visible);
+    });
+    return cleanup;
+  }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onWidgetVisibility) return;
+    const cleanup = window.electronAPI.onWidgetVisibility((visible) => {
+      setWidgetVisible(visible);
     });
     return cleanup;
   }, []);
@@ -230,6 +251,10 @@ function App() {
   // Check initial sticker state
   useEffect(() => {
     window.electronAPI?.stickerIsVisible?.().then((v) => setStickerVisible(v));
+  }, []);
+
+  useEffect(() => {
+    window.electronAPI?.widgetIsVisible?.().then((v) => setWidgetVisible(v));
   }, []);
 
   useEffect(() => {
@@ -409,6 +434,9 @@ function App() {
         case "view:sticker":
           void handleStickerToggle();
           break;
+        case "view:widget":
+          void handleWidgetToggle();
+          break;
         case "view:themeCycle":
           cycleThemeMode();
           break;
@@ -423,6 +451,7 @@ function App() {
     createNewTask,
     dispatchEditorKey,
     handleStickerToggle,
+    handleWidgetToggle,
     cycleThemeMode,
   ]);
 
@@ -594,6 +623,16 @@ function App() {
             title={stickerVisible ? "Hide Sticker" : "Show Sticker"}
           >
             Sticker
+          </button>
+          <button
+            onClick={handleWidgetToggle}
+            className={`px-2.5 py-1 text-[12px] rounded transition-colors flex items-center gap-1 ${
+              widgetVisible ? "bg-editor-accent/20 text-editor-accent" : "text-editor-subtext hover:text-editor-text hover:bg-editor-border/50"
+            }`}
+            title={widgetVisible ? "Hide Widget" : "Show Widget"}
+          >
+            <LayoutGrid size={12} />
+            Widget
           </button>
         </div>
         </div>

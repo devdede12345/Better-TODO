@@ -46,6 +46,7 @@ export default function StickerApp() {
   const [locked, setLocked] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [fileName, setFileName] = useState<string>("No file");
+  const [isWidgetMode, setIsWidgetMode] = useState(false);
 
   // Apply parsed content
   const applyContent = useCallback((content: string, name?: string) => {
@@ -101,6 +102,15 @@ export default function StickerApp() {
     return () => media.removeEventListener("change", onChange);
   }, []);
 
+  useEffect(() => {
+    const isWidget = new URLSearchParams(window.location.search).get("widget") === "1";
+    setIsWidgetMode(isWidget);
+    document.body.classList.toggle("sticker-widget-mode", isWidget);
+    return () => {
+      document.body.classList.remove("sticker-widget-mode");
+    };
+  }, []);
+
   const handleToggleLock = useCallback(async () => {
     if (!window.electronAPI) return;
     const newLocked = await window.electronAPI.stickerSetLocked(!locked);
@@ -130,7 +140,7 @@ export default function StickerApp() {
   const stateColor = (state: string) => {
     switch (state) {
       case "done": return "#a6e3a1";
-      case "cancelled": return "#f38ba8";
+      case "cancelled": return "#f38ba8"; 
       default: return "#89b4fa";
     }
   };
@@ -144,7 +154,7 @@ export default function StickerApp() {
   };
 
   return (
-    <div className="sticker-root">
+    <div className={`sticker-root ${isWidgetMode ? "sticker-root-widget" : ""}`}>
       {/* Header / drag handle */}
       <div className="sticker-handle flex items-center justify-between px-3 py-2 border-b sticker-border">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -198,6 +208,25 @@ export default function StickerApp() {
             );
           }
           const task = line.data;
+          const cleaned = cleanText(task.text);
+
+          if (isWidgetMode) {
+            return (
+              <button
+                key={i}
+                type="button"
+                className={`widget-task-button ${task.state}`}
+                style={{ marginLeft: Math.min(task.indent, 4) * 6 }}
+                title={cleaned}
+              >
+                <span className="widget-task-marker" style={{ color: stateColor(task.state) }}>
+                  {markerChar(task.state)}
+                </span>
+                <span className="widget-task-label">{cleaned}</span>
+              </button>
+            );
+          }
+
           return (
             <div
               key={i}
@@ -210,7 +239,7 @@ export default function StickerApp() {
               >
                 {markerChar(task.state)}
               </span>
-              <span className="sticker-task-text">{cleanText(task.text)}</span>
+              <span className="sticker-task-text">{cleaned}</span>
             </div>
           );
         })}

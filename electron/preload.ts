@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Sticker operations
   stickerToggle: () => ipcRenderer.invoke("sticker:toggle"),
   stickerIsVisible: () => ipcRenderer.invoke("sticker:isVisible"),
+  widgetToggle: () => ipcRenderer.invoke("widget:toggle"),
+  widgetIsVisible: () => ipcRenderer.invoke("widget:isVisible"),
   stickerSetLocked: (locked: boolean) => ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => ipcRenderer.invoke("sticker:getLocked"),
   stickerSyncContent: (content: string, fileName: string) => ipcRenderer.send("sticker:syncContent", content, fileName),
@@ -40,6 +42,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_event: any, visible: boolean) => cb(visible);
     ipcRenderer.on("sticker:visibility", handler);
     return () => ipcRenderer.removeListener("sticker:visibility", handler);
+  },
+  onWidgetVisibility: (cb: (visible: boolean) => void) => {
+    const handler = (_event: any, visible: boolean) => cb(visible);
+    ipcRenderer.on("widget:visibility", handler);
+    return () => ipcRenderer.removeListener("widget:visibility", handler);
   },
 
   // Quick Entry

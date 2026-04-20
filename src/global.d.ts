@@ -30,6 +30,8 @@ declare global {
       // Sticker
       stickerToggle: () => Promise<boolean>;
       stickerIsVisible: () => Promise<boolean>;
+      widgetToggle: () => Promise<boolean>;
+      widgetIsVisible: () => Promise<boolean>;
       stickerSetLocked: (locked: boolean) => Promise<boolean>;
       stickerGetLocked: () => Promise<boolean>;
       stickerSyncContent: (content: string, fileName: string) => void;
@@ -38,6 +40,7 @@ declare global {
       onStickerUpdate: (cb: (content: string, fileName: string) => void) => () => void;
       onStickerLockState: (cb: (locked: boolean) => void) => () => void;
       onStickerVisibility: (cb: (visible: boolean) => void) => () => void;
+      onWidgetVisibility: (cb: (visible: boolean) => void) => () => void;
 
       // Quick Entry
       quickEntrySubmit: (text: string) => Promise<void>;

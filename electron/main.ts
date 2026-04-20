@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 
 let mainWindow: BrowserWindow | null = null;
 let stickerWindow: BrowserWindow | null = null;
+let widgetWindow: BrowserWindow | null = null;
 let quickEntryWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let currentFilePath: string | null = null;
@@ -40,6 +41,7 @@ type NativeMenuAction =
   | "format:italic"
   | "format:underline"
   | "view:sticker"
+  | "view:widget"
   | "view:themeCycle";
 
 function sendNativeMenuAction(action: NativeMenuAction) {
@@ -125,6 +127,7 @@ function setupMacApplicationMenu() {
       label: "View",
       submenu: [
         { label: "Toggle Sticker", click: () => sendNativeMenuAction("view:sticker") },
+        { label: "Toggle Widget", click: () => sendNativeMenuAction("view:widget") },
         { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
         { type: "separator" },
         { role: "reload" },
@@ -272,6 +275,9 @@ function broadcastUpdatedContent(content: string, filePath: string) {
   const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 }
 
@@ -474,6 +480,9 @@ function createWindow() {
     if (stickerWindow && !stickerWindow.isDestroyed()) {
       stickerWindow.close();
     }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.close();
+    }
   });
 }
 
@@ -530,6 +539,65 @@ function createStickerWindow() {
 
   // Notify main window sticker is visible
   mainWindow?.webContents.send("sticker:visibility", true);
+}
+
+function createWidgetWindow() {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.focus();
+    return;
+  }
+
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+
+  widgetWindow = new BrowserWindow({
+    width: 360,
+    height: 420,
+    x: screenW - 380,
+    y: screenH - 460,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: isMac ? true : false,
+    backgroundColor: "#00000000",
+    vibrancy: isMac ? "hud" : undefined,
+    visualEffectState: isMac ? "active" : undefined,
+    webPreferences: {
+      preload: join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isMac) {
+    widgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html?widget=1");
+  } else {
+    widgetWindow.loadFile(join(__dirname, "../dist/sticker.html"), {
+      query: { widget: "1" },
+    });
+  }
+
+  widgetWindow.webContents.on("did-finish-load", () => {
+    if (currentFilePath && existsSync(currentFilePath)) {
+      const content = readFileSync(currentFilePath, "utf-8");
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      widgetWindow?.webContents.send("sticker:update", content, fileName);
+    }
+    widgetWindow?.webContents.send("sticker:lockState", stickerLocked);
+  });
+
+  widgetWindow.on("closed", () => {
+    widgetWindow = null;
+    mainWindow?.webContents.send("widget:visibility", false);
+  });
+
+  mainWindow?.webContents.send("widget:visibility", true);
 }
 
 // ─── Quick Entry Window ─────────────────────────────────────────────────────
@@ -685,6 +753,9 @@ ipcMain.handle("file:open", async () => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fn);
   }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
+  }
   syncRemindersFromContent(content, currentFilePath);
   return { path: currentFilePath, content };
 });
@@ -707,6 +778,9 @@ ipcMain.handle("file:save", async (_event, content: string) => {
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fn);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
   }
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
@@ -841,11 +915,29 @@ ipcMain.handle("sticker:isVisible", () => {
   return stickerWindow !== null && !stickerWindow.isDestroyed();
 });
 
+ipcMain.handle("widget:toggle", () => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+    return false;
+  }
+  createWidgetWindow();
+  return true;
+});
+
+ipcMain.handle("widget:isVisible", () => {
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
+});
+
 ipcMain.handle("sticker:setLocked", (_event, locked: boolean) => {
   stickerLocked = locked;
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.setIgnoreMouseEvents(false);
     stickerWindow.webContents.send("sticker:lockState", locked);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.setIgnoreMouseEvents(false);
+    widgetWindow.webContents.send("sticker:lockState", locked);
   }
   return locked;
 });
@@ -868,6 +960,9 @@ ipcMain.handle("sticker:back", () => {
 ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 });
 
@@ -917,6 +1012,9 @@ ipcMain.handle("quickentry:submit", (_event, text: string) => {
     const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
     if (stickerWindow && !stickerWindow.isDestroyed()) {
       stickerWindow.webContents.send("sticker:update", content, fn);
+    }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.webContents.send("sticker:update", content, fn);
     }
   }
 

@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 let mainWindow = null;
 let stickerWindow = null;
+let widgetWindow = null;
 let quickEntryWindow = null;
 let tray = null;
 let currentFilePath = null;
@@ -91,6 +92,7 @@ function setupMacApplicationMenu() {
       label: "View",
       submenu: [
         { label: "Toggle Sticker", click: () => sendNativeMenuAction("view:sticker") },
+        { label: "Toggle Widget", click: () => sendNativeMenuAction("view:widget") },
         { label: "Cycle Theme", click: () => sendNativeMenuAction("view:themeCycle") },
         { type: "separator" },
         { role: "reload" },
@@ -205,6 +207,9 @@ function broadcastUpdatedContent(content, filePath) {
   const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 }
 function markReminderTaskDone(reminder) {
@@ -380,6 +385,9 @@ function createWindow() {
     if (stickerWindow && !stickerWindow.isDestroyed()) {
       stickerWindow.close();
     }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.close();
+    }
   });
 }
 function createStickerWindow() {
@@ -426,6 +434,57 @@ function createStickerWindow() {
     mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", false);
   });
   mainWindow == null ? void 0 : mainWindow.webContents.send("sticker:visibility", true);
+}
+function createWidgetWindow() {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.focus();
+    return;
+  }
+  const { width: screenW, height: screenH } = electron.screen.getPrimaryDisplay().workAreaSize;
+  widgetWindow = new electron.BrowserWindow({
+    width: 360,
+    height: 420,
+    x: screenW - 380,
+    y: screenH - 460,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: isMac ? true : false,
+    backgroundColor: "#00000000",
+    vibrancy: isMac ? "hud" : void 0,
+    visualEffectState: isMac ? "active" : void 0,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (isMac) {
+    widgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html?widget=1");
+  } else {
+    widgetWindow.loadFile(path.join(__dirname, "../dist/sticker.html"), {
+      query: { widget: "1" }
+    });
+  }
+  widgetWindow.webContents.on("did-finish-load", () => {
+    if (currentFilePath && fs.existsSync(currentFilePath)) {
+      const content = fs.readFileSync(currentFilePath, "utf-8");
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:update", content, fileName);
+    }
+    widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:lockState", stickerLocked);
+  });
+  widgetWindow.on("closed", () => {
+    widgetWindow = null;
+    mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", false);
+  });
+  mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", true);
 }
 function createQuickEntryWindow() {
   if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
@@ -549,6 +608,9 @@ electron.ipcMain.handle("file:open", async () => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fn);
   }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
+  }
   syncRemindersFromContent(content, currentFilePath);
   return { path: currentFilePath, content };
 });
@@ -568,6 +630,9 @@ electron.ipcMain.handle("file:save", async (_event, content) => {
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fn);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
   }
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
@@ -689,11 +754,27 @@ electron.ipcMain.handle("sticker:toggle", () => {
 electron.ipcMain.handle("sticker:isVisible", () => {
   return stickerWindow !== null && !stickerWindow.isDestroyed();
 });
+electron.ipcMain.handle("widget:toggle", () => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+    return false;
+  }
+  createWidgetWindow();
+  return true;
+});
+electron.ipcMain.handle("widget:isVisible", () => {
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
+});
 electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
   stickerLocked = locked;
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.setIgnoreMouseEvents(false);
     stickerWindow.webContents.send("sticker:lockState", locked);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.setIgnoreMouseEvents(false);
+    widgetWindow.webContents.send("sticker:lockState", locked);
   }
   return locked;
 });
@@ -711,6 +792,9 @@ electron.ipcMain.handle("sticker:back", () => {
 electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
   if (stickerWindow && !stickerWindow.isDestroyed()) {
     stickerWindow.webContents.send("sticker:update", content, fileName);
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
   }
 });
 electron.ipcMain.on("reminder:syncDraft", (_event, content) => {
@@ -745,6 +829,9 @@ electron.ipcMain.handle("quickentry:submit", (_event, text) => {
     const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
     if (stickerWindow && !stickerWindow.isDestroyed()) {
       stickerWindow.webContents.send("sticker:update", content, fn);
+    }
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.webContents.send("sticker:update", content, fn);
     }
   }
   if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {

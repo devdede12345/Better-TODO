@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "electron:dev": "vite",
+    "electron:dev:legacy": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
     "electron:build": "vite build && electron-builder",
     "electron:build:mac": "vite build && electron-builder --mac",
     "electron:build:win": "vite build && electron-builder --win"
