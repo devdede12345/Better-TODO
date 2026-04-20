@@ -808,6 +808,23 @@ electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
   broadcastUpdatedContent(content, currentFilePath);
   return true;
 });
+electron.ipcMain.handle("sticker:deleteTask", (_event, lineIndex) => {
+  var _a;
+  if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+  const lines = fs.readFileSync(currentFilePath, "utf-8").split("\n");
+  if (lineIndex >= lines.length) return false;
+  const target = ((_a = lines[lineIndex]) == null ? void 0 : _a.trimStart()) || "";
+  if (!target.startsWith("☐") && !target.startsWith("✔") && !target.startsWith("✘")) {
+    return false;
+  }
+  lines.splice(lineIndex, 1);
+  const content = lines.join("\n");
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
 electron.ipcMain.handle("sticker:addTask", (_event, text) => {
   if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
   const taskText = text.trim();

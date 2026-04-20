@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Lock, Unlock, X, GripVertical, Plus } from "lucide-react";
+import { Lock, Unlock, X, GripVertical, Plus, Trash2 } from "lucide-react";
 import { normalizeFontFamily } from "../hooks/useEditorSettings";
 
 interface StickerTask {
@@ -175,6 +175,11 @@ export default function StickerApp() {
     await window.electronAPI.stickerToggleTask(lineIndex);
   }, []);
 
+  const handleDeleteTask = useCallback(async (lineIndex: number) => {
+    if (!window.electronAPI?.stickerDeleteTask) return;
+    await window.electronAPI.stickerDeleteTask(lineIndex);
+  }, []);
+
   const handleAddTask = useCallback(async () => {
     const text = newTaskText.trim();
     if (!text || !window.electronAPI?.stickerAddTask) return;
@@ -327,6 +332,17 @@ export default function StickerApp() {
                   </span>
                 </button>
                 <span className="widget-task-label">{cleaned}</span>
+                <button
+                  type="button"
+                  className="widget-task-delete-button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleDeleteTask(task.lineIndex);
+                  }}
+                  title="Delete task"
+                >
+                  <Trash2 size={11} />
+                </button>
               </div>
             );
           }

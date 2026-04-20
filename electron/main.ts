@@ -1186,6 +1186,26 @@ ipcMain.handle("sticker:toggleTask", (_event, lineIndex: number) => {
   return true;
 });
 
+ipcMain.handle("sticker:deleteTask", (_event, lineIndex: number) => {
+  if (!currentFilePath || !existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+
+  const lines = readFileSync(currentFilePath, "utf-8").split("\n");
+  if (lineIndex >= lines.length) return false;
+
+  const target = lines[lineIndex]?.trimStart() || "";
+  if (!target.startsWith("☐") && !target.startsWith("✔") && !target.startsWith("✘")) {
+    return false;
+  }
+
+  lines.splice(lineIndex, 1);
+  const content = lines.join("\n");
+  writeFileSync(currentFilePath, content, "utf-8");
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
+
 ipcMain.handle("sticker:addTask", (_event, text: string) => {
   if (!currentFilePath || !existsSync(currentFilePath)) return false;
 

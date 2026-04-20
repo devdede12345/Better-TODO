@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   stickerSetLocked: (locked: boolean) => ipcRenderer.invoke("sticker:setLocked", locked),
   stickerGetLocked: () => ipcRenderer.invoke("sticker:getLocked"),
   stickerToggleTask: (lineIndex: number) => ipcRenderer.invoke("sticker:toggleTask", lineIndex),
+  stickerDeleteTask: (lineIndex: number) => ipcRenderer.invoke("sticker:deleteTask", lineIndex),
   stickerAddTask: (text: string) => ipcRenderer.invoke("sticker:addTask", text),
   stickerSyncContent: (content: string, fileName: string) => ipcRenderer.send("sticker:syncContent", content, fileName),
   stickerRequestContent: () => ipcRenderer.invoke("sticker:requestContent"),

@@ -464,6 +464,24 @@ body.sticker-widget-mode .widget-task-label {
   text-overflow: ellipsis;
 }
 
+body.sticker-widget-mode .widget-task-delete-button {
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 7px;
+  background: rgba(239, 68, 68, 0.08);
+  color: rgba(252, 165, 165, 0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+body.sticker-widget-mode .widget-task-delete-button:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
 body.sticker-widget-mode .widget-quick-entry {
   display: flex;
   align-items: center;
@@ -516,6 +534,13 @@ body.theme-light.sticker-widget-mode .widget-task-button {
   border-color: rgba(148, 163, 184, 0.4);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.9));
   color: rgba(15, 23, 42, 0.94);
+}
+
+html.theme-light body.sticker-widget-mode .widget-task-delete-button,
+body.theme-light.sticker-widget-mode .widget-task-delete-button {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(254, 226, 226, 0.82);
+  color: rgba(185, 28, 28, 0.95);
 }
 
 html.theme-light body.sticker-widget-mode .widget-quick-entry,
