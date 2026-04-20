@@ -213,6 +213,16 @@ function cleanTaskLabel(text: string): string {
     .trim();
 }
 
+function formatReminderDueAt(ts: number): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "--/-- --:--";
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${mo}/${day} ${h}:${m}`;
+}
+
 function extractReminderTasks(content: string, filePath: string): ReminderTask[] {
   const lines = content.split("\n");
   const projectStack: { indent: number; name: string }[] = [];
@@ -360,6 +370,11 @@ function getNextReminderPreview() {
 
 function showReminderNotification(reminder: ReminderTask) {
   let handled = false;
+  const reminderTitle = `提醒 · ${reminder.projectName}`;
+  const reminderBody = [
+    cleanTaskLabel(reminder.taskText),
+    `⏰截止时间到！（${formatReminderDueAt(reminder.dueAt)}）`,
+  ].join("\n");
 
   const onComplete = () => {
     handled = true;
@@ -371,8 +386,8 @@ function showReminderNotification(reminder: ReminderTask) {
     const fallbackOptions: Electron.MessageBoxSyncOptions = {
       type: "info",
       title: "任务提醒",
-      message: reminder.projectName,
-      detail: cleanTaskLabel(reminder.taskText),
+      message: reminderTitle,
+      detail: reminderBody,
       buttons: ["已完成", "稍后提醒"],
       defaultId: 1,
       cancelId: 1,
@@ -386,8 +401,8 @@ function showReminderNotification(reminder: ReminderTask) {
   }
 
   const notification = new Notification({
-    title: `提醒 · ${reminder.projectName}`,
-    body: `${cleanTaskLabel(reminder.taskText)}\n截止时间已到`,
+    title: reminderTitle,
+    body: reminderBody,
     actions: [
       { type: "button", text: "已完成" },
       { type: "button", text: "稍后提醒" },

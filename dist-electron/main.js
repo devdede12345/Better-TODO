@@ -154,6 +154,15 @@ function extractDueTimestamp(taskText) {
 function cleanTaskLabel(text) {
   return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{8}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{4}(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
 }
+function formatReminderDueAt(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "--/-- --:--";
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${mo}/${day} ${h}:${m}`;
+}
 function extractReminderTasks(content, filePath) {
   const lines = content.split("\n");
   const projectStack = [];
@@ -277,6 +286,11 @@ function getNextReminderPreview() {
 }
 function showReminderNotification(reminder) {
   let handled = false;
+  const reminderTitle = `提醒 · ${reminder.projectName}`;
+  const reminderBody = [
+    cleanTaskLabel(reminder.taskText),
+    `⏰截止时间到！（${formatReminderDueAt(reminder.dueAt)}）`
+  ].join("\n");
   const onComplete = () => {
     handled = true;
     removeReminder(reminder.id);
@@ -286,8 +300,8 @@ function showReminderNotification(reminder) {
     const fallbackOptions = {
       type: "info",
       title: "任务提醒",
-      message: reminder.projectName,
-      detail: cleanTaskLabel(reminder.taskText),
+      message: reminderTitle,
+      detail: reminderBody,
       buttons: ["已完成", "稍后提醒"],
       defaultId: 1,
       cancelId: 1
@@ -298,9 +312,8 @@ function showReminderNotification(reminder) {
     return;
   }
   const notification = new electron.Notification({
-    title: `提醒 · ${reminder.projectName}`,
-    body: `${cleanTaskLabel(reminder.taskText)}
-截止时间已到`,
+    title: reminderTitle,
+    body: reminderBody,
     actions: [
       { type: "button", text: "已完成" },
       { type: "button", text: "稍后提醒" }
