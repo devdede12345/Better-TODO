@@ -752,6 +752,12 @@ ipcMain.on("sticker:syncContent", (_event, content: string, fileName: string) =>
   }
 });
 
+// Called by main renderer whenever draft content changes — keep reminder timers in sync
+ipcMain.on("reminder:syncDraft", (_event, content: string) => {
+  if (!currentFilePath) return;
+  syncRemindersFromContent(content, currentFilePath);
+});
+
 // ─── Quick Entry IPC ────────────────────────────────────────────────────────
 
 ipcMain.handle("quickentry:submit", (_event, text: string) => {

@@ -45,6 +45,7 @@ function App() {
   const [stats, setStats] = useState({ total: 0, done: 0, pending: 0, cancelled: 0, estMinutes: 0 });
   const [parsedDoc, setParsedDoc] = useState<ParsedDocument | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reminderSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
   const [stickerVisible, setStickerVisible] = useState(false);
@@ -94,6 +95,13 @@ function App() {
     []
   );
 
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (reminderSyncTimerRef.current) clearTimeout(reminderSyncTimerRef.current);
+    };
+  }, []);
+
   // Dashboard: New File
   const handleNew = useCallback(async () => {
     if (window.electronAPI) {
@@ -129,6 +137,12 @@ function App() {
       // Sync content to sticker window
       const fn = (filePathRef.current || "Untitled").split(/[\\/]/).pop() || "Untitled";
       window.electronAPI?.stickerSyncContent?.(newContent, fn);
+
+      // Sync draft reminders without waiting for save/newline
+      if (reminderSyncTimerRef.current) clearTimeout(reminderSyncTimerRef.current);
+      reminderSyncTimerRef.current = setTimeout(() => {
+        window.electronAPI?.reminderSyncDraft?.(newContent);
+      }, 120);
 
       // Auto-save after 2 seconds of inactivity
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);

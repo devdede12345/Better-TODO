@@ -617,6 +617,10 @@ electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
     stickerWindow.webContents.send("sticker:update", content, fileName);
   }
 });
+electron.ipcMain.on("reminder:syncDraft", (_event, content) => {
+  if (!currentFilePath) return;
+  syncRemindersFromContent(content, currentFilePath);
+});
 electron.ipcMain.handle("quickentry:submit", (_event, text) => {
   if (!text.trim()) return;
   const tasks = text.split("\n").filter((l) => l.trim()).map((l) => `  ☐ ${l.trim()}`).join("\n");
