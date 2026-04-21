@@ -72,6 +72,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   explorerReadDir: (rootPath: string) => ipcRenderer.invoke("explorer:readDir", rootPath),
   explorerOpenFileByPath: (filePath: string) => ipcRenderer.invoke("explorer:openFileByPath", filePath),
 
+  // Recent files
+  getRecentFiles: () => ipcRenderer.invoke("recent:getFiles"),
+
   // System settings
   systemGetSettings: () => ipcRenderer.invoke("system:getSettings"),
   systemSetAutoLaunch: (enabled: boolean) => ipcRenderer.invoke("system:setAutoLaunch", enabled),

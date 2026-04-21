@@ -153,6 +153,18 @@ function App() {
     }
   }, [enterEditor, isEditing]);
 
+  // Open a recent file by path
+  const handleOpenRecent = useCallback(async (filePath: string) => {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.explorerOpenFileByPath(filePath);
+    if (result) {
+      enterEditor(result.content, result.path);
+      if (isEditing) {
+        (window as any).__todoEditorSetContent?.(result.content);
+      }
+    }
+  }, [enterEditor, isEditing]);
+
   const handleChange = useCallback(
     (newContent: string) => {
       setContent(newContent);
@@ -471,9 +483,19 @@ function App() {
         </div>
 
         {/* Dashboard */}
-        <div className="flex-1">
-          <Dashboard onNew={handleNew} onOpen={handleOpen} />
+        <div className="flex-1 overflow-hidden">
+          <Dashboard onNew={handleNew} onOpen={handleOpen} onOpenRecent={handleOpenRecent} onSettings={() => setSettingsOpen(true)} />
         </div>
+
+        {/* Settings Modal (also available from dashboard) */}
+        {settingsOpen && (
+          <SettingsPanel
+            settings={editorSettings}
+            onUpdate={updateSettings}
+            onReset={resetSettings}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
       </div>
     );
   }

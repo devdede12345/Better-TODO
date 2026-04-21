@@ -27,6 +27,12 @@ interface FolderTree {
   children: FileTreeNode[];
 }
 
+interface RecentFileEntry {
+  path: string;
+  name: string;
+  openedAt: number;
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -64,6 +70,9 @@ declare global {
       quickEntryHide: () => Promise<void>;
       onQuickEntryShow: (cb: () => void) => () => void;
       onTaskAppended: (cb: (task: string) => void) => () => void;
+
+      // Recent files
+      getRecentFiles: () => Promise<RecentFileEntry[]>;
 
       // Explorer
       explorerOpenFolder: () => Promise<FolderTree | null>;

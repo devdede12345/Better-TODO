@@ -30,6 +30,42 @@ function saveSystemSettings(s: { autoLaunch: boolean; minimizeToTray: boolean })
   writeFileSync(settingsPath, JSON.stringify(s, null, 2), "utf-8");
 }
 
+// ─── Recent files ────────────────────────────────────────────────────────────
+
+const recentFilesPath = join(app.getPath("userData"), "recent-files.json");
+const MAX_RECENT_FILES = 10;
+
+interface RecentFile {
+  path: string;
+  name: string;
+  openedAt: number;
+}
+
+function loadRecentFiles(): RecentFile[] {
+  try {
+    if (existsSync(recentFilesPath)) {
+      const list = JSON.parse(readFileSync(recentFilesPath, "utf-8")) as RecentFile[];
+      // Filter out files that no longer exist
+      return list.filter((f) => existsSync(f.path));
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveRecentFiles(list: RecentFile[]) {
+  writeFileSync(recentFilesPath, JSON.stringify(list, null, 2), "utf-8");
+}
+
+function pushRecentFile(filePath: string) {
+  const list = loadRecentFiles().filter((f) => f.path !== filePath);
+  list.unshift({
+    path: filePath,
+    name: filePath.split(/[\\/]/).pop() || "Untitled",
+    openedAt: Date.now(),
+  });
+  saveRecentFiles(list.slice(0, MAX_RECENT_FILES));
+}
+
 const REMINDER_REPEAT_MS = 5 * 60 * 1000;
 const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1000;
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1000;
@@ -914,6 +950,7 @@ ipcMain.handle("file:open", async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
 
   currentFilePath = result.filePaths[0];
+  pushRecentFile(currentFilePath);
   const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileSync(currentFilePath, "utf-8");
   // Also sync to sticker
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
@@ -938,6 +975,7 @@ ipcMain.handle("file:save", async (_event, content: string) => {
     });
     if (result.canceled || !result.filePath) return null;
     currentFilePath = result.filePath;
+    pushRecentFile(currentFilePath);
   }
 
   writeFileSync(currentFilePath, content, "utf-8");
@@ -963,6 +1001,7 @@ ipcMain.handle("file:saveAs", async (_event, content: string) => {
   });
   if (result.canceled || !result.filePath) return null;
   currentFilePath = result.filePath;
+  pushRecentFile(currentFilePath);
   writeFileSync(currentFilePath, content, "utf-8");
   syncRemindersFromContent(content, currentFilePath);
   return currentFilePath;
@@ -978,6 +1017,7 @@ ipcMain.handle("file:new", async () => {
   });
   if (result.canceled || !result.filePath) return null;
   currentFilePath = result.filePath;
+  pushRecentFile(currentFilePath);
   const defaultContent = ``;
   writeFileSync(currentFilePath, defaultContent, "utf-8");
   syncRemindersFromContent(defaultContent, currentFilePath);
@@ -1006,6 +1046,7 @@ ipcMain.handle("explorer:openFileByPath", (_event, filePath: string) => {
 
   const content = readFileSync(filePath, "utf-8");
   currentFilePath = filePath;
+  pushRecentFile(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
 
   if (stickerWindow && !stickerWindow.isDestroyed()) {
@@ -1331,4 +1372,8 @@ ipcMain.handle("system:setTitleBarOverlay", (_event, color: string, symbolColor:
   try {
     mainWindow.setTitleBarOverlay({ color, symbolColor, height: 36 });
   } catch { /* ignore on unsupported platforms */ }
+});
+
+ipcMain.handle("recent:getFiles", () => {
+  return loadRecentFiles();
 });
