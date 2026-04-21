@@ -122,6 +122,9 @@ body.theme-light ::-webkit-scrollbar-thumb:hover {
 
 .cm-editor .cm-content {
   padding: 0 16px;
+  letter-spacing: -0.01em;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
 }
 
 .cm-editor .cm-gutters {

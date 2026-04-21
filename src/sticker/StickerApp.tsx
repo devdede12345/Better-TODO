@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Lock, Unlock, X, GripVertical, Plus } from "lucide-react";
+import { Lock, Unlock, X, GripVertical, Plus, Trash2 } from "lucide-react";
 import { normalizeFontFamily } from "../hooks/useEditorSettings";
 
 interface StickerTask {
@@ -99,6 +99,7 @@ export default function StickerApp() {
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
+
     const applyTheme = (dark: boolean) => {
       const next = dark ? "theme-dark" : "theme-light";
       const prev = dark ? "theme-light" : "theme-dark";
@@ -108,11 +109,39 @@ export default function StickerApp() {
       document.body.classList.add(next);
     };
 
-    applyTheme(media.matches);
+    const getThemeMode = (): "light" | "dark" | "system" => {
+      const mode = localStorage.getItem("theme-mode");
+      if (mode === "light" || mode === "dark" || mode === "system") return mode;
+      return "system";
+    };
 
-    const onChange = (e: MediaQueryListEvent) => applyTheme(e.matches);
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
+    const applyThemeFromMode = () => {
+      const mode = getThemeMode();
+      const dark = mode === "system" ? media.matches : mode === "dark";
+      applyTheme(dark);
+    };
+
+    applyThemeFromMode();
+
+    const onMediaChange = () => {
+      if (getThemeMode() === "system") {
+        applyThemeFromMode();
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "theme-mode") {
+        applyThemeFromMode();
+      }
+    };
+
+    media.addEventListener("change", onMediaChange);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      media.removeEventListener("change", onMediaChange);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -173,6 +202,11 @@ export default function StickerApp() {
   const handleToggleTask = useCallback(async (lineIndex: number) => {
     if (!window.electronAPI?.stickerToggleTask) return;
     await window.electronAPI.stickerToggleTask(lineIndex);
+  }, []);
+
+  const handleDeleteTask = useCallback(async (lineIndex: number) => {
+    if (!window.electronAPI?.stickerDeleteTask) return;
+    await window.electronAPI.stickerDeleteTask(lineIndex);
   }, []);
 
   const handleAddTask = useCallback(async () => {
@@ -327,6 +361,17 @@ export default function StickerApp() {
                   </span>
                 </button>
                 <span className="widget-task-label">{cleaned}</span>
+                <button
+                  type="button"
+                  className="widget-task-delete-button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleDeleteTask(task.lineIndex);
+                  }}
+                  title="Delete task"
+                >
+                  <Trash2 size={11} />
+                </button>
               </div>
             );
           }

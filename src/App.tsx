@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import {
   FileText,
   FolderOpen,
@@ -26,6 +26,7 @@ import {
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
 import SettingsPanel from "./components/SettingsPanel";
+import FileExplorer from "./components/FileExplorer";
 import { useEditorSettings, normalizeFontFamily } from "./hooks/useEditorSettings";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
@@ -79,6 +80,11 @@ function App() {
     return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
   });
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
+  const [showExplorer, setShowExplorer] = useState<boolean>(() => localStorage.getItem("explorer-visible") !== "0");
+  const [taskFilterOpen, setTaskFilterOpen] = useState(false);
+  const [taskFilterKeyword, setTaskFilterKeyword] = useState("");
+  const [taskFilterTag, setTaskFilterTag] = useState<string>("all");
+  const taskFilterRef = useRef<HTMLDivElement>(null);
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
   const shellBgClass = isMac
     ? resolvedTheme === "light"
@@ -230,16 +236,40 @@ function App() {
 
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
     const tick = async () => {
       if (!window.electronAPI?.getNextReminder) return;
       const reminder = await window.electronAPI.getNextReminder();
       if (alive) setNextReminder(reminder);
     };
-    tick();
-    const timer = setInterval(tick, 1000);
+
+    const startPolling = () => {
+      if (timer) return;
+      tick();
+      timer = setInterval(tick, 1000);
+    };
+
+    const stopPolling = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopPolling();
+      else startPolling();
+    };
+
+    // Start only if visible
+    if (!document.hidden) startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       alive = false;
-      clearInterval(timer);
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -260,6 +290,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem("theme-mode", themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    localStorage.setItem("explorer-visible", showExplorer ? "1" : "0");
+  }, [showExplorer]);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--app-font-family", appFontFamily);
@@ -318,6 +352,9 @@ function App() {
       } else if (mod && key === "o") {
         e.preventDefault();
         handleOpen();
+      } else if (mod && key === "/") {
+        e.preventDefault();
+        setShowExplorer((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handler);
@@ -339,6 +376,17 @@ function App() {
     return () => document.removeEventListener("mousedown", handler);
   }, [openMenu]);
 
+  useEffect(() => {
+    if (!taskFilterOpen) return;
+    const onMouseDown = (event: MouseEvent) => {
+      if (taskFilterRef.current && !taskFilterRef.current.contains(event.target as Node)) {
+        setTaskFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [taskFilterOpen]);
+
   // Execute a menu action and close the menu
   const menuAction = useCallback((fn: () => void) => {
     setOpenMenu(null);
@@ -347,6 +395,34 @@ function App() {
 
   const createNewTask = useCallback(() => {
     (window as any).__todoEditorCreateNewTask?.();
+  }, []);
+
+  const handleExplorerOpenFile = useCallback((path: string, fileContent: string) => {
+    setFilePath(path);
+    setContent(fileContent);
+    setIsDirty(false);
+    setIsEditing(true);
+    (window as any).__todoEditorSetContent?.(fileContent);
+  }, []);
+
+  const availableTaskTags = useMemo(() => {
+    if (!parsedDoc) return [] as string[];
+    return Array.from(new Set(parsedDoc.tasks.flatMap((task) => task.tags))).sort((a, b) => a.localeCompare(b));
+  }, [parsedDoc]);
+
+  const filteredTasks = useMemo(() => {
+    if (!parsedDoc) return [];
+    const keyword = taskFilterKeyword.trim().toLowerCase();
+    return parsedDoc.tasks.filter((task) => {
+      const keywordMatch = !keyword || task.text.toLowerCase().includes(keyword);
+      const tagMatch = taskFilterTag === "all" || task.tags.includes(taskFilterTag);
+      return keywordMatch && tagMatch;
+    });
+  }, [parsedDoc, taskFilterKeyword, taskFilterTag]);
+
+  const focusTaskLine = useCallback((lineIndex: number) => {
+    (window as any).__todoEditorFocusLine?.(lineIndex + 1);
+    setTaskFilterOpen(false);
   }, []);
 
   const cycleThemeMode = useCallback(() => {
@@ -644,7 +720,7 @@ function App() {
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1 titlebar-no-drag">
+        <div className="flex items-center gap-1 titlebar-no-drag relative">
           <button
             onClick={cycleThemeMode}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
@@ -660,26 +736,91 @@ function App() {
             <Plus size={14} className="text-editor-subtext" />
           </button>
           <button
+            onClick={() => setShowExplorer((prev) => !prev)}
+            className={`p-1.5 rounded transition-colors ${showExplorer ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
+            title={`Toggle Explorer (${sc("Ctrl+/", "⌘+/")})`}
+          >
+            <FolderOpen size={14} className={showExplorer ? "text-editor-accent" : "text-editor-subtext"} />
+          </button>
+
+          <button
             onClick={handleOpen}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
             title={`Open File (${sc("Ctrl+O", "⌘+O")})`}
           >
-            <FolderOpen size={14} className="text-editor-subtext" />
+            <FileText size={14} className="text-editor-subtext" />
           </button>
-          <button
-            onClick={handleSave}
-            className="p-1.5 rounded hover:bg-editor-border transition-colors"
-            title={`Save (${sc("Ctrl+S", "⌘+S")})`}
-          >
-            <Save size={14} className="text-editor-subtext" />
-          </button>
+
+          <div ref={taskFilterRef} className="relative">
+            <button
+              onClick={() => setTaskFilterOpen((prev) => !prev)}
+              className={`p-1.5 rounded transition-colors ${taskFilterOpen ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
+              title="Filter tasks by keyword/tag"
+            >
+              <Search size={14} className={taskFilterOpen ? "text-editor-accent" : "text-editor-subtext"} />
+            </button>
+
+            {taskFilterOpen && (
+              <div className={`absolute right-0 mt-2 w-[320px] border rounded-lg shadow-xl p-3 z-[95] ${menuPanelClass}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    value={taskFilterKeyword}
+                    onChange={(event) => setTaskFilterKeyword(event.target.value)}
+                    placeholder="Keyword..."
+                    className="flex-1 px-2 py-1.5 text-[12px] rounded border border-editor-border bg-editor-surface text-editor-text focus:outline-none"
+                  />
+                  <select
+                    value={taskFilterTag}
+                    onChange={(event) => setTaskFilterTag(event.target.value)}
+                    className="w-[120px] px-2 py-1.5 text-[12px] rounded border border-editor-border bg-editor-surface text-editor-text focus:outline-none"
+                  >
+                    <option value="all">All tags</option>
+                    {availableTaskTags.map((tag) => (
+                      <option key={tag} value={tag}>@{tag}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-[11px] text-editor-muted mb-1">
+                  {filteredTasks.length} match{filteredTasks.length === 1 ? "" : "es"}
+                </div>
+
+                <div className="max-h-56 overflow-y-auto rounded border border-editor-border/60">
+                  {filteredTasks.length === 0 ? (
+                    <div className="px-3 py-2 text-[11px] text-editor-muted">No matching tasks</div>
+                  ) : (
+                    filteredTasks.slice(0, 80).map((task) => (
+                      <button
+                        key={`${task.line}-${task.text}`}
+                        onClick={() => focusTaskLine(task.line)}
+                        className="w-full text-left px-3 py-1.5 text-[11px] border-b last:border-b-0 border-editor-border/40 hover:bg-editor-border/40 transition-colors"
+                        title={`Line ${task.line + 1}`}
+                      >
+                        <span className="text-editor-muted mr-2">#{task.line + 1}</span>
+                        <span className="text-editor-text">{task.text}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         {!isMac && <div className="w-[140px] shrink-0" />}
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-hidden">
-        <TodoEditor initialContent={content} onChange={handleChange} onParsed={handleParsed} settings={editorSettings} />
+      <div className="flex-1 overflow-hidden flex">
+        {showExplorer && (
+          <FileExplorer
+            currentFilePath={filePath}
+            onOpenFile={handleExplorerOpenFile}
+            onClose={() => setShowExplorer(false)}
+          />
+        )}
+        <div className="flex-1 overflow-hidden">
+          <TodoEditor initialContent={content} onChange={handleChange} onParsed={handleParsed} settings={editorSettings} />
+        </div>
       </div>
 
       {/* Settings Modal */}

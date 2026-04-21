@@ -7,6 +7,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { keymap } from "@codemirror/view";
 import { indentOnInput, foldGutter, bracketMatching, indentUnit } from "@codemirror/language";
 import { search, highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+import { EditorSelection } from "@codemirror/state";
 
 import { todoLanguage } from "../editor/todo-language";
 import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
@@ -177,6 +178,20 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
     });
   }, []);
 
+  const focusLine = useCallback((lineNumber: number) => {
+    const view = viewRef.current;
+    if (!view) return;
+    const maxLine = view.state.doc.lines;
+    const safeLine = Math.max(1, Math.min(maxLine, Math.floor(lineNumber)));
+    const line = view.state.doc.line(safeLine);
+
+    view.dispatch({
+      selection: EditorSelection.single(line.from, line.to),
+      scrollIntoView: true,
+    });
+    view.focus();
+  }, []);
+
   const createNewTask = useCallback(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -207,11 +222,13 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
   useEffect(() => {
     (window as any).__todoEditorSetContent = setContent;
     (window as any).__todoEditorCreateNewTask = createNewTask;
+    (window as any).__todoEditorFocusLine = focusLine;
     return () => {
       delete (window as any).__todoEditorSetContent;
       delete (window as any).__todoEditorCreateNewTask;
+      delete (window as any).__todoEditorFocusLine;
     };
-  }, [setContent, createNewTask]);
+  }, [setContent, createNewTask, focusLine]);
 
   return (
     <div
