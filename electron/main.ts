@@ -743,8 +743,8 @@ function createWidgetWindow() {
     skipTaskbar: true,
     hasShadow: isMac ? true : false,
     backgroundColor: "#00000000",
-    vibrancy: isMac ? "hud" : undefined,
-    visualEffectState: isMac ? "active" : undefined,
+    vibrancy: undefined,
+    visualEffectState: undefined,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,

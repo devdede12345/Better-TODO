@@ -99,6 +99,7 @@ export default function StickerApp() {
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
+
     const applyTheme = (dark: boolean) => {
       const next = dark ? "theme-dark" : "theme-light";
       const prev = dark ? "theme-light" : "theme-dark";
@@ -108,11 +109,39 @@ export default function StickerApp() {
       document.body.classList.add(next);
     };
 
-    applyTheme(media.matches);
+    const getThemeMode = (): "light" | "dark" | "system" => {
+      const mode = localStorage.getItem("theme-mode");
+      if (mode === "light" || mode === "dark" || mode === "system") return mode;
+      return "system";
+    };
 
-    const onChange = (e: MediaQueryListEvent) => applyTheme(e.matches);
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
+    const applyThemeFromMode = () => {
+      const mode = getThemeMode();
+      const dark = mode === "system" ? media.matches : mode === "dark";
+      applyTheme(dark);
+    };
+
+    applyThemeFromMode();
+
+    const onMediaChange = () => {
+      if (getThemeMode() === "system") {
+        applyThemeFromMode();
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "theme-mode") {
+        applyThemeFromMode();
+      }
+    };
+
+    media.addEventListener("change", onMediaChange);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      media.removeEventListener("change", onMediaChange);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   useEffect(() => {

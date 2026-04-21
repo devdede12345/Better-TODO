@@ -256,7 +256,7 @@ body.theme-light .sticker-body::-webkit-scrollbar-thumb {
 /* macOS widget mode */
 body.sticker-widget-mode {
   --widget-border: rgba(255, 255, 255, 0.18);
-  --widget-bg: linear-gradient(180deg, rgba(39, 39, 62, 0.88), rgba(24, 24, 37, 0.9));
+  --widget-bg: linear-gradient(180deg, rgba(30, 30, 46, 0.98), rgba(30, 30, 46, 0.96));
   --task-btn-border: rgba(255, 255, 255, 0.22);
   --task-btn-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
   --task-btn-color: rgba(255, 255, 255, 0.92);
@@ -334,7 +334,9 @@ body.sticker-widget-mode .sticker-root {
   border-radius: 16px;
   border: 1px solid var(--widget-border);
   background: var(--widget-bg);
-  backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: hidden;
 }
 
 body.sticker-widget-mode .sticker-handle {
