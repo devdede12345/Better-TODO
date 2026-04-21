@@ -11,6 +11,7 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: SettingsPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [customFontInput, setCustomFontInput] = useState("");
 
   // System settings loaded from electron
   const [autoLaunch, setAutoLaunch] = useState(false);
@@ -38,6 +39,11 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
 
   // Shortcut recording state
   const [recordingAction, setRecordingAction] = useState<string | null>(null);
+
+  useEffect(() => {
+    const isPreset = FONT_OPTIONS.some((option) => option.value === settings.fontFamily);
+    setCustomFontInput(isPreset ? "" : settings.fontFamily);
+  }, [settings.fontFamily]);
 
   const handleShortcutKeyDown = useCallback(
     (e: React.KeyboardEvent, action: string) => {
@@ -139,6 +145,29 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
                   <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
               </select>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={customFontInput}
+                  onChange={(e) => setCustomFontInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const normalized = normalizeFontFamily(customFontInput);
+                      onUpdate({ fontFamily: normalized });
+                    }
+                  }}
+                  placeholder='Custom font stack, e.g. "Maple Mono", monospace'
+                  className="flex-1 px-2.5 py-1.5 text-[12px] rounded-md border border-editor-border bg-editor-surface text-editor-text focus:outline-none focus:ring-1 focus:ring-editor-accent/50"
+                />
+                <button
+                  onClick={() => {
+                    const normalized = normalizeFontFamily(customFontInput);
+                    onUpdate({ fontFamily: normalized });
+                  }}
+                  className="px-2.5 py-1.5 text-[11px] rounded-md border border-editor-border text-editor-subtext hover:text-editor-text hover:bg-editor-border/50 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
               <p className="mt-1 text-[10px] text-editor-muted">
                 Preview: <span style={{ fontFamily: normalizeFontFamily(settings.fontFamily) }}>AaBbCc 0123</span>
               </p>

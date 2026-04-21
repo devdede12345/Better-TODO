@@ -388,7 +388,7 @@ function createWindow() {
     minHeight: 400,
     frame: false,
     titleBarStyle: isMac ? "hiddenInset" : "hidden",
-    trafficLightPosition: isMac ? { x: 14, y: 12 } : void 0,
+    trafficLightPosition: isMac ? { x: 14, y: 14 } : void 0,
     titleBarOverlay: isMac ? void 0 : {
       color: "#1e1e2e",
       symbolColor: "#cdd6f4",
@@ -944,4 +944,11 @@ electron.ipcMain.handle("system:setMinimizeToTray", (_event, enabled) => {
   s.minimizeToTray = enabled;
   saveSystemSettings(s);
   return enabled;
+});
+electron.ipcMain.handle("system:setTitleBarOverlay", (_event, color, symbolColor) => {
+  if (isMac || !mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setTitleBarOverlay({ color, symbolColor, height: 36 });
+  } catch {
+  }
 });

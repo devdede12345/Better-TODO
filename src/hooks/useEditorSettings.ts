@@ -141,6 +141,8 @@ export function useEditorSettings() {
 }
 
 export const FONT_OPTIONS = [
+  { label: "Apple System (macOS default)", value: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif' },
+  { label: "Segoe UI (Windows default)", value: '"Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", Tahoma, Arial, sans-serif' },
   { label: "JetBrains Mono", value: '"JetBrains Mono", monospace' },
   { label: "Fira Code", value: '"Fira Code", monospace' },
   { label: "Cascadia Code", value: '"Cascadia Code", monospace' },

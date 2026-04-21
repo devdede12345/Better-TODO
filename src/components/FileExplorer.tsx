@@ -166,7 +166,7 @@ export default function FileExplorer({ currentFilePath, onOpenFile, onClose }: F
   return (
     <div
       ref={containerRef}
-      className="flex flex-col h-full border-r border-editor-border bg-editor-overlay/40 select-none"
+      className="flex flex-col h-full border-r border-editor-border bg-editor-bg select-none"
       style={{ width: 240, minWidth: 180, maxWidth: 400 }}
     >
       {/* Header */}
