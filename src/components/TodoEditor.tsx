@@ -6,7 +6,7 @@ import { normalizeFontFamily } from "../hooks/useEditorSettings";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
 import { indentOnInput, foldGutter, bracketMatching, indentUnit } from "@codemirror/language";
-import { search, highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+import { highlightSelectionMatches } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 
 import { todoLanguage } from "../editor/todo-language";
@@ -79,7 +79,6 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
         bracketMatching(),
         highlightSelectionMatches(),
         indentUnit.of("  "),
-        search({ top: true }),
 
         // Folding
         foldGutter({
@@ -93,7 +92,6 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
         keymap.of([
           ...defaultKeymap,
           ...historyKeymap,
-          ...searchKeymap,
           indentWithTab,
         ]),
 

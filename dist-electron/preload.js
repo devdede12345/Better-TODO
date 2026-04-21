@@ -68,6 +68,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   explorerOpenFolder: () => electron.ipcRenderer.invoke("explorer:openFolder"),
   explorerReadDir: (rootPath) => electron.ipcRenderer.invoke("explorer:readDir", rootPath),
   explorerOpenFileByPath: (filePath) => electron.ipcRenderer.invoke("explorer:openFileByPath", filePath),
+  // Recent files
+  getRecentFiles: () => electron.ipcRenderer.invoke("recent:getFiles"),
   // System settings
   systemGetSettings: () => electron.ipcRenderer.invoke("system:getSettings"),
   systemSetAutoLaunch: (enabled) => electron.ipcRenderer.invoke("system:setAutoLaunch", enabled),
