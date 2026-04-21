@@ -167,6 +167,27 @@ body.theme-light ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--editor-yellow) / 0.48);
 }
 
+/* Hide default CodeMirror search panel */
+.cm-editor .cm-search.cm-panel {
+  display: none !important;
+}
+
+/* Spotlight search animation */
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.spotlight-panel {
+  animation: spotlight-in 0.15s ease-out;
+}
+
 /* Selection highlight */
 ::selection {
   background: rgb(var(--editor-accent) / 0.24);

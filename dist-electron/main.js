@@ -25,6 +25,30 @@ function loadSystemSettings() {
 function saveSystemSettings(s) {
   fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2), "utf-8");
 }
+const recentFilesPath = path.join(electron.app.getPath("userData"), "recent-files.json");
+const MAX_RECENT_FILES = 10;
+function loadRecentFiles() {
+  try {
+    if (fs.existsSync(recentFilesPath)) {
+      const list = JSON.parse(fs.readFileSync(recentFilesPath, "utf-8"));
+      return list.filter((f) => fs.existsSync(f.path));
+    }
+  } catch {
+  }
+  return [];
+}
+function saveRecentFiles(list) {
+  fs.writeFileSync(recentFilesPath, JSON.stringify(list, null, 2), "utf-8");
+}
+function pushRecentFile(filePath) {
+  const list = loadRecentFiles().filter((f) => f.path !== filePath);
+  list.unshift({
+    path: filePath,
+    name: filePath.split(/[\\/]/).pop() || "Untitled",
+    openedAt: Date.now()
+  });
+  saveRecentFiles(list.slice(0, MAX_RECENT_FILES));
+}
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
 const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1e3;
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1e3;
@@ -633,6 +657,7 @@ electron.ipcMain.handle("file:saveAs", async (_event, content) => {
   });
   if (result.canceled || !result.filePath) return null;
   currentFilePath = result.filePath;
+  pushRecentFile(currentFilePath);
   fs.writeFileSync(currentFilePath, content, "utf-8");
   invalidateFileCache(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
@@ -648,6 +673,7 @@ electron.ipcMain.handle("file:new", async () => {
   });
   if (result.canceled || !result.filePath) return null;
   currentFilePath = result.filePath;
+  pushRecentFile(currentFilePath);
   const defaultContent = ``;
   fs.writeFileSync(currentFilePath, defaultContent, "utf-8");
   invalidateFileCache(currentFilePath);
@@ -671,6 +697,7 @@ electron.ipcMain.handle("explorer:openFileByPath", (_event, filePath) => {
   if (!stat.isFile()) return null;
   const content = fs.readFileSync(filePath, "utf-8");
   currentFilePath = filePath;
+  pushRecentFile(currentFilePath);
   syncRemindersFromContent(content, currentFilePath);
   if (widgetWindow && !widgetWindow.isDestroyed()) {
     const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
@@ -951,4 +978,7 @@ electron.ipcMain.handle("system:setTitleBarOverlay", (_event, color, symbolColor
     mainWindow.setTitleBarOverlay({ color, symbolColor, height: 36 });
   } catch {
   }
+});
+electron.ipcMain.handle("recent:getFiles", () => {
+  return loadRecentFiles();
 });

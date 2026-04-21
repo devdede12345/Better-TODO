@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   FileText,
   FolderOpen,
@@ -27,6 +27,7 @@ import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
 import SettingsPanel from "./components/SettingsPanel";
 import FileExplorer from "./components/FileExplorer";
+import SpotlightSearch from "./components/SpotlightSearch";
 import { useEditorSettings, normalizeFontFamily } from "./hooks/useEditorSettings";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
@@ -81,10 +82,7 @@ function App() {
   });
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
   const [showExplorer, setShowExplorer] = useState<boolean>(() => localStorage.getItem("explorer-visible") !== "0");
-  const [taskFilterOpen, setTaskFilterOpen] = useState(false);
-  const [taskFilterKeyword, setTaskFilterKeyword] = useState("");
-  const [taskFilterTag, setTaskFilterTag] = useState<string>("all");
-  const taskFilterRef = useRef<HTMLDivElement>(null);
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
   const shellBgClass = isMac
     ? resolvedTheme === "light"
@@ -355,6 +353,9 @@ function App() {
       } else if (mod && key === "/") {
         e.preventDefault();
         setShowExplorer((prev) => !prev);
+      } else if (mod && key === "f" && !e.shiftKey) {
+        e.preventDefault();
+        setSpotlightOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
@@ -376,17 +377,6 @@ function App() {
     return () => document.removeEventListener("mousedown", handler);
   }, [openMenu]);
 
-  useEffect(() => {
-    if (!taskFilterOpen) return;
-    const onMouseDown = (event: MouseEvent) => {
-      if (taskFilterRef.current && !taskFilterRef.current.contains(event.target as Node)) {
-        setTaskFilterOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [taskFilterOpen]);
-
   // Execute a menu action and close the menu
   const menuAction = useCallback((fn: () => void) => {
     setOpenMenu(null);
@@ -405,24 +395,8 @@ function App() {
     (window as any).__todoEditorSetContent?.(fileContent);
   }, []);
 
-  const availableTaskTags = useMemo(() => {
-    if (!parsedDoc) return [] as string[];
-    return Array.from(new Set(parsedDoc.tasks.flatMap((task) => task.tags))).sort((a, b) => a.localeCompare(b));
-  }, [parsedDoc]);
-
-  const filteredTasks = useMemo(() => {
-    if (!parsedDoc) return [];
-    const keyword = taskFilterKeyword.trim().toLowerCase();
-    return parsedDoc.tasks.filter((task) => {
-      const keywordMatch = !keyword || task.text.toLowerCase().includes(keyword);
-      const tagMatch = taskFilterTag === "all" || task.tags.includes(taskFilterTag);
-      return keywordMatch && tagMatch;
-    });
-  }, [parsedDoc, taskFilterKeyword, taskFilterTag]);
-
-  const focusTaskLine = useCallback((lineIndex: number) => {
+  const spotlightFocusLine = useCallback((lineIndex: number) => {
     (window as any).__todoEditorFocusLine?.(lineIndex + 1);
-    setTaskFilterOpen(false);
   }, []);
 
   const cycleThemeMode = useCallback(() => {
@@ -495,7 +469,7 @@ function App() {
           dispatchEditorKey("a", true, true);
           break;
         case "edit:find":
-          dispatchEditorKey("f", true);
+          setSpotlightOpen(true);
           break;
         case "edit:replace":
           dispatchEditorKey("h", true);
@@ -647,7 +621,7 @@ function App() {
                 <MenuItem icon={<Copy size={14} />} label="Copy" shortcut={sc("Ctrl+C", "⌘+C")} onClick={() => menuAction(() => document.execCommand("copy"))} />
                 <MenuItem icon={<ClipboardPaste size={14} />} label="Paste" shortcut={sc("Ctrl+V", "⌘+V")} onClick={() => menuAction(() => document.execCommand("paste"))} />
                 <MenuDivider />
-                <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => dispatchEditorKey("f", true))} />
+                <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => setSpotlightOpen(true))} />
                 <MenuItem icon={<Replace size={14} />} label="Replace" shortcut={sc("Ctrl+H", "⌘+H")} onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
                 <MenuDivider />
                 <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
@@ -751,60 +725,13 @@ function App() {
             <FileText size={14} className="text-editor-subtext" />
           </button>
 
-          <div ref={taskFilterRef} className="relative">
-            <button
-              onClick={() => setTaskFilterOpen((prev) => !prev)}
-              className={`p-1.5 rounded transition-colors ${taskFilterOpen ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
-              title="Filter tasks by keyword/tag"
-            >
-              <Search size={14} className={taskFilterOpen ? "text-editor-accent" : "text-editor-subtext"} />
-            </button>
-
-            {taskFilterOpen && (
-              <div className={`absolute right-0 mt-2 w-[320px] border rounded-lg shadow-xl p-3 z-[95] ${menuPanelClass}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    value={taskFilterKeyword}
-                    onChange={(event) => setTaskFilterKeyword(event.target.value)}
-                    placeholder="Keyword..."
-                    className="flex-1 px-2 py-1.5 text-[12px] rounded border border-editor-border bg-editor-surface text-editor-text focus:outline-none"
-                  />
-                  <select
-                    value={taskFilterTag}
-                    onChange={(event) => setTaskFilterTag(event.target.value)}
-                    className="w-[120px] px-2 py-1.5 text-[12px] rounded border border-editor-border bg-editor-surface text-editor-text focus:outline-none"
-                  >
-                    <option value="all">All tags</option>
-                    {availableTaskTags.map((tag) => (
-                      <option key={tag} value={tag}>@{tag}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="text-[11px] text-editor-muted mb-1">
-                  {filteredTasks.length} match{filteredTasks.length === 1 ? "" : "es"}
-                </div>
-
-                <div className="max-h-56 overflow-y-auto rounded border border-editor-border/60">
-                  {filteredTasks.length === 0 ? (
-                    <div className="px-3 py-2 text-[11px] text-editor-muted">No matching tasks</div>
-                  ) : (
-                    filteredTasks.slice(0, 80).map((task) => (
-                      <button
-                        key={`${task.line}-${task.text}`}
-                        onClick={() => focusTaskLine(task.line)}
-                        className="w-full text-left px-3 py-1.5 text-[11px] border-b last:border-b-0 border-editor-border/40 hover:bg-editor-border/40 transition-colors"
-                        title={`Line ${task.line + 1}`}
-                      >
-                        <span className="text-editor-muted mr-2">#{task.line + 1}</span>
-                        <span className="text-editor-text">{task.text}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setSpotlightOpen(true)}
+            className="p-1.5 rounded hover:bg-editor-border transition-colors"
+            title={`Search (${sc("Ctrl+F", "⌘+F")})`}
+          >
+            <Search size={14} className="text-editor-subtext" />
+          </button>
         </div>
         {!isMac && <div className="w-[140px] shrink-0" />}
       </div>
@@ -830,6 +757,16 @@ function App() {
           onUpdate={updateSettings}
           onReset={resetSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {/* Spotlight Search */}
+      {spotlightOpen && (
+        <SpotlightSearch
+          parsedDoc={parsedDoc}
+          content={content}
+          onClose={() => setSpotlightOpen(false)}
+          onFocusLine={spotlightFocusLine}
         />
       )}
 

@@ -73,15 +73,15 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
       </div>
 
       {/* Main content — two columns on wide screens */}
-      <div className="flex gap-8 w-[56rem] max-w-[92vw]">
+      <div className="flex gap-8 w-[56rem] max-w-[92vw] items-start">
         {/* Left: Actions */}
-        <div className="flex flex-col gap-3 flex-1 min-w-0">
+        <div className="flex flex-col gap-2.5 flex-1 min-w-0">
           <h2 className="text-[11px] font-semibold text-editor-muted uppercase tracking-wider mb-1">
             Start
           </h2>
           <button
             onClick={onNew}
-            className="group flex items-center gap-4 px-5 py-3.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
+            className="group flex items-center gap-4 px-4 py-2.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
           >
             <FilePlus2 size={18} className="text-editor-accent shrink-0" />
             <div className="flex flex-col items-start min-w-0">
@@ -93,7 +93,7 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
 
           <button
             onClick={onOpen}
-            className="group flex items-center gap-4 px-5 py-3.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
+            className="group flex items-center gap-4 px-4 py-2.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
           >
             <FolderOpen size={18} className="text-editor-peach shrink-0" />
             <div className="flex flex-col items-start min-w-0">
@@ -105,7 +105,7 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
 
           <button
             onClick={onSettings}
-            className="group flex items-center gap-4 px-5 py-3.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
+            className="group flex items-center gap-4 px-4 py-2.5 rounded-lg bg-editor-surface border border-editor-border hover:border-editor-accent hover:bg-editor-overlay transition-all duration-200"
           >
             <Settings size={18} className="text-editor-mauve shrink-0" />
             <div className="flex flex-col items-start min-w-0">
@@ -117,7 +117,7 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
         </div>
 
         {/* Right: Recent Files */}
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex flex-col gap-2.5 flex-1 min-w-0">
           <h2 className="text-[11px] font-semibold text-editor-muted uppercase tracking-wider mb-1">
             Recent
           </h2>
