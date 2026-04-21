@@ -945,3 +945,10 @@ electron.ipcMain.handle("system:setMinimizeToTray", (_event, enabled) => {
   saveSystemSettings(s);
   return enabled;
 });
+electron.ipcMain.handle("system:setTitleBarOverlay", (_event, color, symbolColor) => {
+  if (isMac || !mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setTitleBarOverlay({ color, symbolColor, height: 36 });
+  } catch {
+  }
+});
