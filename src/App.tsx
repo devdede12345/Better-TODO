@@ -289,6 +289,13 @@ function App() {
       document.documentElement.classList.add(next);
       document.body.classList.add(next);
       setResolvedTheme(dark ? "dark" : "light");
+
+      // Sync Windows title bar overlay colors with theme
+      if (!isMac && window.electronAPI?.setTitleBarOverlay) {
+        const color = dark ? "#1e1e2e" : "#eef2ff";
+        const symbolColor = dark ? "#cdd6f4" : "#1f2937";
+        window.electronAPI.setTitleBarOverlay(color, symbolColor);
+      }
     };
 
     applyTheme();
@@ -484,6 +491,7 @@ function App() {
           >
             {themeMode === "system" ? <Monitor size={14} className="text-editor-subtext" /> : themeMode === "light" ? <Sun size={14} className="text-editor-subtext" /> : <Moon size={14} className="text-editor-subtext" />}
           </button>
+          {!isMac && <div className="w-[140px] shrink-0" />}
         </div>
 
         {/* Dashboard */}
@@ -668,6 +676,7 @@ function App() {
             <Save size={14} className="text-editor-subtext" />
           </button>
         </div>
+        {!isMac && <div className="w-[140px] shrink-0" />}
       </div>
 
       {/* Editor */}

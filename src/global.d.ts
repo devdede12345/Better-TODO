@@ -75,6 +75,7 @@ declare global {
       systemGetSettings: () => Promise<{ autoLaunch: boolean; minimizeToTray: boolean }>;
       systemSetAutoLaunch: (enabled: boolean) => Promise<boolean>;
       systemSetMinimizeToTray: (enabled: boolean) => Promise<boolean>;
+      setTitleBarOverlay: (color: string, symbolColor: string) => Promise<void>;
     };
   }
 }

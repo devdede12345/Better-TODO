@@ -27,15 +27,27 @@ function toggleDone(view: EditorView): boolean {
       if (!text.includes("@done")) {
         changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
       }
+      // Auto-calculate @lasted if @started is present
+      if (text.includes("@started") && !text.includes("@lasted")) {
+        const lasted = computeLasted(text, now);
+        if (lasted) {
+          changes.push({ from: line.to, to: line.to, insert: ` ${lasted}` });
+        }
+      }
     } else if (text.includes("✔")) {
       // Done -> Cancelled
       const idx = line.from + text.indexOf("✔");
       changes.push({ from: idx, to: idx + "✔".length, insert: "✘" });
-      // Remove @done, add @cancelled
+      // Remove @done and @lasted, add @cancelled
       const doneMatch = text.match(/ ?@done(\([^)]*\))?/);
       if (doneMatch) {
         const doneIdx = line.from + text.indexOf(doneMatch[0]);
         changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
+      }
+      const lastedMatch = text.match(/ ?@lasted(\([^)]*\))?/);
+      if (lastedMatch) {
+        const lastedIdx = line.from + text.indexOf(lastedMatch[0]);
+        changes.push({ from: lastedIdx, to: lastedIdx + lastedMatch[0].length, insert: "" });
       }
       if (!text.includes("@cancelled")) {
         changes.push({ from: line.to, to: line.to, insert: ` @cancelled(${now})` });
@@ -209,6 +221,70 @@ function newTask(view: EditorView): boolean {
   return true;
 }
 
+// Toggle @started tag on current task (Alt+S)
+function toggleStarted(view: EditorView): boolean {
+  const { state } = view;
+  const changes: { from: number; to: number; insert: string }[] = [];
+
+  for (const range of state.selection.ranges) {
+    const line = state.doc.lineAt(range.head);
+    const text = line.text;
+    const now = formatTaskStatusTimestamp();
+
+    // Only works on pending tasks (☐)
+    if (!text.includes("☐")) continue;
+
+    const startedMatch = text.match(/ ?@started(\([^)]*\))?/);
+    if (startedMatch) {
+      // Remove @started (toggle off)
+      const startedIdx = line.from + text.indexOf(startedMatch[0]);
+      changes.push({ from: startedIdx, to: startedIdx + startedMatch[0].length, insert: "" });
+    } else {
+      // Add @started
+      changes.push({ from: line.to, to: line.to, insert: ` @started(${now})` });
+    }
+  }
+
+  if (changes.length === 0) return false;
+  view.dispatch({ changes });
+  return true;
+}
+
+// Calculate elapsed time between @started and @done timestamps, returns "@lasted(XhYm)"
+function computeLasted(text: string, doneTimestamp: string): string {
+  const startedMatch = text.match(/@started\(([^)]+)\)/);
+  if (!startedMatch) return "";
+
+  const startStr = startedMatch[1].trim();
+  const startDate = parseTimestamp(startStr);
+  const doneDate = parseTimestamp(doneTimestamp);
+  if (!startDate || !doneDate) return "";
+
+  const diffMs = doneDate.getTime() - startDate.getTime();
+  if (diffMs <= 0) return "";
+
+  const totalMin = Math.round(diffMs / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+
+  if (h > 0 && m > 0) return `@lasted(${h}h${m}m)`;
+  if (h > 0) return `@lasted(${h}h)`;
+  return `@lasted(${m}m)`;
+}
+
+// Parse "YYYY-MM-DD HH:MM" into a Date object
+function parseTimestamp(str: string): Date | null {
+  const match = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+  if (!match) return null;
+  return new Date(
+    parseInt(match[1]),
+    parseInt(match[2]) - 1,
+    parseInt(match[3]),
+    parseInt(match[4]),
+    parseInt(match[5])
+  );
+}
+
 // Archive completed and cancelled tasks: move them under "Archive:" section
 function archiveTasks(view: EditorView): boolean {
   const doc = view.state.doc.toString();
@@ -300,6 +376,12 @@ const clickToggle = EditorView.domEventHandlers({
       if (!text.includes("@done")) {
         changes.push({ from: line.to, to: line.to, insert: ` @done(${now})` });
       }
+      if (text.includes("@started") && !text.includes("@lasted")) {
+        const lasted = computeLasted(text, now);
+        if (lasted) {
+          changes.push({ from: line.to, to: line.to, insert: ` ${lasted}` });
+        }
+      }
     } else if (marker === "✔") {
       // Done -> Pending (undo)
       changes.push({ from: line.from + idx, to: line.from + idx + "✔".length, insert: "☐" });
@@ -307,6 +389,11 @@ const clickToggle = EditorView.domEventHandlers({
       if (doneMatch) {
         const doneIdx = line.from + text.indexOf(doneMatch[0]);
         changes.push({ from: doneIdx, to: doneIdx + doneMatch[0].length, insert: "" });
+      }
+      const lastedMatch = text.match(/ ?@lasted(\([^)]*\))?/);
+      if (lastedMatch) {
+        const lastedIdx = line.from + text.indexOf(lastedMatch[0]);
+        changes.push({ from: lastedIdx, to: lastedIdx + lastedMatch[0].length, insert: "" });
       }
     } else if (marker === "✘") {
       // Cancelled -> Pending (undo)
@@ -325,36 +412,58 @@ const clickToggle = EditorView.domEventHandlers({
   },
 });
 
-export const todoKeymap = keymap.of([
-  {
-    key: "Ctrl-d",
-    run: toggleDone,
-  },
-  {
-    key: "Alt-c",
-    run: toggleCancelled,
-  },
-  {
-    key: "Ctrl-b",
-    run: toggleBold,
-  },
-  {
-    key: "Ctrl-i",
-    run: toggleItalic,
-  },
-  {
-    key: "Ctrl-u",
-    run: toggleUnderline,
-  },
-  {
-    key: "Ctrl-Shift-a",
-    run: archiveTasks,
-  },
-  {
-    key: "Ctrl-Enter",
-    run: newTask,
-  },
-]);
+// Map action names (from settings) → handler functions
+const ACTION_HANDLERS: Record<string, (view: EditorView) => boolean> = {
+  "Toggle Done": toggleDone,
+  "Toggle Cancelled": toggleCancelled,
+  "Toggle Started": toggleStarted,
+  "New Task": newTask,
+  "Archive Done": archiveTasks,
+  "Bold": toggleBold,
+  "Italic": toggleItalic,
+  "Underline": toggleUnderline,
+};
+
+// Convert display shortcut (e.g. "Ctrl+Shift+A") to CodeMirror key format (e.g. "Ctrl-Shift-a")
+function toCodemirrorKey(display: string): string {
+  return display
+    .split("+")
+    .map((part, i, arr) => {
+      // Last part is the actual key; others are modifiers
+      if (i === arr.length - 1) {
+        // CodeMirror uses lowercase for single-char keys, but capitalized names for special keys
+        if (part.length === 1) return part.toLowerCase();
+        // Enter, Space, etc. stay as-is
+        return part;
+      }
+      // Modifiers: capitalize first letter
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join("-");
+}
+
+// Build a keymap Extension from a ShortcutMap
+export function buildTodoKeymap(shortcuts?: Record<string, string>) {
+  const defaultMap: Record<string, string> = {
+    "Toggle Done": "Ctrl-d",
+    "Toggle Cancelled": "Alt-c",
+    "Toggle Started": "Ctrl-m",
+    "New Task": "Ctrl-Enter",
+    "Archive Done": "Ctrl-Shift-a",
+    "Bold": "Ctrl-b",
+    "Italic": "Ctrl-i",
+    "Underline": "Ctrl-u",
+  };
+
+  const bindings = Object.entries(ACTION_HANDLERS).map(([action, handler]) => {
+    const key = shortcuts?.[action]
+      ? toCodemirrorKey(shortcuts[action])
+      : defaultMap[action] || "";
+    return { key, run: handler };
+  }).filter(b => b.key);
+
+  return keymap.of(bindings);
+}
 
 export const todoClickToggle = clickToggle;
 

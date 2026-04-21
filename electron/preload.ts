@@ -77,4 +77,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   systemGetSettings: () => ipcRenderer.invoke("system:getSettings"),
   systemSetAutoLaunch: (enabled: boolean) => ipcRenderer.invoke("system:setAutoLaunch", enabled),
   systemSetMinimizeToTray: (enabled: boolean) => ipcRenderer.invoke("system:setMinimizeToTray", enabled),
+  setTitleBarOverlay: (color: string, symbolColor: string) => ipcRenderer.invoke("system:setTitleBarOverlay", color, symbolColor),
 });
