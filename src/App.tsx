@@ -714,19 +714,19 @@ function App() {
             <Plus size={14} className="text-editor-subtext" />
           </button>
           <button
-            onClick={handleOpen}
-            className="p-1.5 rounded hover:bg-editor-border transition-colors"
-            title={`Open File (${sc("Ctrl+O", "⌘+O")})`}
-          >
-            <FolderOpen size={14} className="text-editor-subtext" />
-          </button>
-
-          <button
             onClick={() => setShowExplorer((prev) => !prev)}
             className={`p-1.5 rounded transition-colors ${showExplorer ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
             title={`Toggle Explorer (${sc("Ctrl+/", "⌘+/")})`}
           >
-            <FileText size={14} className={showExplorer ? "text-editor-accent" : "text-editor-subtext"} />
+            <FolderOpen size={14} className={showExplorer ? "text-editor-accent" : "text-editor-subtext"} />
+          </button>
+
+          <button
+            onClick={handleOpen}
+            className="p-1.5 rounded hover:bg-editor-border transition-colors"
+            title={`Open File (${sc("Ctrl+O", "⌘+O")})`}
+          >
+            <FileText size={14} className="text-editor-subtext" />
           </button>
 
           <div ref={taskFilterRef} className="relative">

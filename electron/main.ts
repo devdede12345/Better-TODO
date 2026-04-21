@@ -624,7 +624,7 @@ function createWindow() {
     minHeight: 400,
     frame: false,
     titleBarStyle: isMac ? "hiddenInset" : "hidden",
-    trafficLightPosition: isMac ? { x: 14, y: 12 } : undefined,
+    trafficLightPosition: isMac ? { x: 14, y: 14 } : undefined,
     titleBarOverlay: isMac ? undefined : {
       color: "#1e1e2e",
       symbolColor: "#cdd6f4",
