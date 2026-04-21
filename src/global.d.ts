@@ -50,6 +50,7 @@ declare global {
       stickerSetLocked: (locked: boolean) => Promise<boolean>;
       stickerGetLocked: () => Promise<boolean>;
       stickerToggleTask: (lineIndex: number) => Promise<boolean>;
+      stickerDeleteTask: (lineIndex: number) => Promise<boolean>;
       stickerAddTask: (text: string) => Promise<boolean>;
       stickerSyncContent: (content: string, fileName: string) => void;
       stickerRequestContent: () => Promise<{ content: string; fileName: string } | null>;

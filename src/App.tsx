@@ -218,16 +218,40 @@ function App() {
 
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
     const tick = async () => {
       if (!window.electronAPI?.getNextReminder) return;
       const reminder = await window.electronAPI.getNextReminder();
       if (alive) setNextReminder(reminder);
     };
-    tick();
-    const timer = setInterval(tick, 1000);
+
+    const startPolling = () => {
+      if (timer) return;
+      tick();
+      timer = setInterval(tick, 1000);
+    };
+
+    const stopPolling = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopPolling();
+      else startPolling();
+    };
+
+    // Start only if visible
+    if (!document.hidden) startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       alive = false;
-      clearInterval(timer);
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
