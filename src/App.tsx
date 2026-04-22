@@ -87,6 +87,19 @@ function App() {
     const saved = parseFloat(localStorage.getItem("ui-scale") || "1");
     return Number.isFinite(saved) && saved > 0 ? saved : 1;
   });
+  const [windowWidth, setWindowWidth] = useState<number>(() => window.innerWidth);
+
+  // Track window resize for responsive title bar collapsing
+  useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Effective width accounts for UI zoom (zoom shrinks the available CSS pixels)
+  const effectiveWidth = windowWidth / uiScale;
+  const showMenuBar = effectiveWidth >= 900;
+  const showFileName = effectiveWidth >= 640;
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
 
   // Apply UI scale via CSS zoom on document root and persist
@@ -591,15 +604,18 @@ function App() {
       <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
         {isMac && <div className="w-[78px] shrink-0" />}
         <div className="flex items-center min-w-0">
-          <div className="flex items-center gap-2 titlebar-no-drag">
-            <FileText size={14} className="text-editor-accent" />
-            <span className="text-xs text-editor-subtext">
-              {fileName}
-              {isDirty && <span className="text-editor-yellow ml-1">●</span>}
-            </span>
-          </div>
+          {showFileName && (
+            <div className="flex items-center gap-2 titlebar-no-drag">
+              <FileText size={14} className="text-editor-accent" />
+              <span className="text-xs text-editor-subtext">
+                {fileName}
+                {isDirty && <span className="text-editor-yellow ml-1">●</span>}
+              </span>
+            </div>
+          )}
 
-          {/* ── Menu Bar ── */}
+          {/* ── Menu Bar ── (hidden on narrow windows to avoid overflow) */}
+          {showMenuBar && (
           <div
             ref={menuBarRef}
             className="flex items-center ml-4 titlebar-no-drag relative z-50"
@@ -710,6 +726,7 @@ function App() {
             Widget
           </button>
         </div>
+          )}
         </div>
 
         <div className={`titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border ${nextReminder?.isOverdue ? "bg-red-500/10" : "bg-editor-overlay/60"}`}>
