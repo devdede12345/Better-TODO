@@ -58,7 +58,7 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
   }, [onNew, onOpen, onSettings]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full select-none">
+    <div className="flex flex-col items-center min-h-full pt-12 pb-10 px-4 select-none">
       {/* Logo / Title */}
       <div className="flex flex-col items-center mb-10">
         <div className="flex items-center gap-3 mb-4">
@@ -161,7 +161,7 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
       </div>
 
       {/* Version / footer */}
-      <div className="absolute bottom-4 text-xs text-editor-muted font-mono opacity-50">
+      <div className="mt-6 text-xs text-editor-muted font-mono opacity-50">
         v1.0.0
       </div>
     </div>
