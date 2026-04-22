@@ -83,7 +83,41 @@ function App() {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
   const [showExplorer, setShowExplorer] = useState<boolean>(() => localStorage.getItem("explorer-visible") !== "0");
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [uiScale, setUiScale] = useState<number>(() => {
+    const saved = parseFloat(localStorage.getItem("ui-scale") || "1");
+    return Number.isFinite(saved) && saved > 0 ? saved : 1;
+  });
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
+
+  // Apply UI scale via CSS zoom on document root and persist
+  useEffect(() => {
+    (document.documentElement.style as any).zoom = String(uiScale);
+    localStorage.setItem("ui-scale", String(uiScale));
+  }, [uiScale]);
+
+  // Global zoom shortcuts: Ctrl/Cmd + =/+/-/0
+  useEffect(() => {
+    const SCALE_MIN = 0.5;
+    const SCALE_MAX = 2.0;
+    const SCALE_STEP = 0.1;
+    const handler = (e: KeyboardEvent) => {
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (!mod) return;
+      // "=" covers both "=" and "+" (shifted) on most layouts
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        setUiScale((s) => Math.min(SCALE_MAX, Math.round((s + SCALE_STEP) * 100) / 100));
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        setUiScale((s) => Math.max(SCALE_MIN, Math.round((s - SCALE_STEP) * 100) / 100));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        setUiScale(1);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
   const shellBgClass = isMac
     ? resolvedTheme === "light"
       ? "bg-white/70 backdrop-blur-3xl"
