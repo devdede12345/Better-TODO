@@ -593,10 +593,6 @@ function App() {
         <div className="flex items-center min-w-0">
           <div className="flex items-center gap-2 titlebar-no-drag">
             <FileText size={14} className="text-editor-accent" />
-            <span className="text-xs font-medium text-editor-text">
-              Better TODO
-            </span>
-            <span className="text-xs text-editor-muted mx-1">|</span>
             <span className="text-xs text-editor-subtext">
               {fileName}
               {isDirty && <span className="text-editor-yellow ml-1">●</span>}
