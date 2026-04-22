@@ -580,7 +580,7 @@ function App() {
         </div>
 
         {/* Dashboard */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           <Dashboard onNew={handleNew} onOpen={handleOpen} onOpenRecent={handleOpenRecent} onSettings={() => setSettingsOpen(true)} />
         </div>
 
