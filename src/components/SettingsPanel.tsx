@@ -108,7 +108,7 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
         className="w-[480px] max-w-full my-auto rounded-xl border border-editor-border bg-editor-bg shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-editor-border sticky top-0 bg-editor-bg z-10">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-editor-border bg-editor-bg">
           <h2 className="text-sm font-semibold text-editor-text">Settings</h2>
           <div className="flex items-center gap-1">
             <button
