@@ -817,6 +817,15 @@ function App() {
           content={content}
           onClose={() => setSpotlightOpen(false)}
           onFocusLine={spotlightFocusLine}
+          onNewTask={createNewTask}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleWidget={handleWidgetToggle}
+          onCycleTheme={cycleThemeMode}
+          onToggleExplorer={() => setShowExplorer((prev) => !prev)}
+          onNewFile={handleNew}
+          onOpenFile={handleOpen}
+          onSaveFile={handleSave}
+          onSaveAsFile={handleSaveAs}
         />
       )}
 
