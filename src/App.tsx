@@ -98,8 +98,8 @@ function App() {
 
   // Effective width accounts for UI zoom (zoom shrinks the available CSS pixels)
   const effectiveWidth = windowWidth / uiScale;
-  const showMenuBar = effectiveWidth >= 900;
-  const showFileName = effectiveWidth >= 640;
+  const showMenuBar = effectiveWidth >= 720;
+  const showFileName = effectiveWidth >= 480;
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
 
   // Apply UI scale via CSS zoom on document root and persist
@@ -119,17 +119,20 @@ function App() {
       // "=" covers both "=" and "+" (shifted) on most layouts
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
+        e.stopPropagation();
         setUiScale((s) => Math.min(SCALE_MAX, Math.round((s + SCALE_STEP) * 100) / 100));
       } else if (e.key === "-" || e.key === "_") {
         e.preventDefault();
+        e.stopPropagation();
         setUiScale((s) => Math.max(SCALE_MIN, Math.round((s - SCALE_STEP) * 100) / 100));
       } else if (e.key === "0") {
         e.preventDefault();
+        e.stopPropagation();
         setUiScale(1);
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, []);
   const shellBgClass = isMac
     ? resolvedTheme === "light"
