@@ -1,6 +1,6 @@
 {
   "name": "todo-studio",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "A standalone Todo App with editor-like experience, replicating vscode-todo-plus",
   "author": "devdede",
   "main": "dist-electron/main.js",
