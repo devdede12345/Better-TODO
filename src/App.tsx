@@ -606,7 +606,7 @@ function App() {
       {/* Title Bar */}
       <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
         {isMac && <div className="w-[78px] shrink-0" />}
-        <div className="flex items-center min-w-0">
+        <div className="flex items-center shrink-0">
           {showFileName && (
             <div className="flex items-center gap-2 titlebar-no-drag">
               <FileText size={14} className="text-editor-accent" />
@@ -732,7 +732,7 @@ function App() {
           )}
         </div>
 
-        <div className={`titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border ${nextReminder?.isOverdue ? "bg-red-500/10" : "bg-editor-overlay/60"}`}>
+        <div className={`titlebar-no-drag ml-3 min-w-0 max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border overflow-hidden ${nextReminder?.isOverdue ? "bg-red-500/10" : "bg-editor-overlay/60"}`}>
           <span className="text-[10px] text-editor-muted uppercase tracking-wide">Next</span>
           <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}>
             {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
