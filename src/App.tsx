@@ -22,12 +22,14 @@ import {
   ClipboardPaste,
   Archive,
   LayoutGrid,
+  Activity,
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
 import SettingsPanel from "./components/SettingsPanel";
 import FileExplorer from "./components/FileExplorer";
 import SpotlightSearch from "./components/SpotlightSearch";
+import TimelineView from "./components/TimelineView";
 import { useEditorSettings, normalizeFontFamily } from "./hooks/useEditorSettings";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
 
@@ -83,6 +85,7 @@ function App() {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
   const [showExplorer, setShowExplorer] = useState<boolean>(() => localStorage.getItem("explorer-visible") !== "0");
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const [uiScale, setUiScale] = useState<number>(() => {
     const saved = parseFloat(localStorage.getItem("ui-scale") || "1");
     return Number.isFinite(saved) && saved > 0 ? saved : 1;
@@ -765,6 +768,14 @@ function App() {
           </button>
 
           <button
+            onClick={() => setTimelineOpen(true)}
+            className={`p-1.5 rounded transition-colors ${timelineOpen ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
+            title="Timeline View"
+          >
+            <Activity size={14} className={timelineOpen ? "text-editor-accent" : "text-editor-subtext"} />
+          </button>
+
+          <button
             onClick={handleOpen}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
             title={`Open File (${sc("Ctrl+O", "⌘+O")})`}
@@ -813,6 +824,16 @@ function App() {
           parsedDoc={parsedDoc}
           content={content}
           onClose={() => setSpotlightOpen(false)}
+          onFocusLine={spotlightFocusLine}
+        />
+      )}
+
+      {/* Timeline View */}
+      {timelineOpen && (
+        <TimelineView
+          parsedDoc={parsedDoc}
+          content={content}
+          onClose={() => setTimelineOpen(false)}
           onFocusLine={spotlightFocusLine}
         />
       )}
