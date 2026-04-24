@@ -1,15 +1,35 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search, X, CheckSquare, Square, XSquare, FolderOpen, FileText, ArrowRight } from "lucide-react";
+import { Search, X, CheckSquare, Square, XSquare, FolderOpen, FileText, ArrowRight, Terminal, Settings as SettingsIcon, LayoutGrid, Sun, FilePlus, Save, SaveAll, FolderTree } from "lucide-react";
 import type { ParsedDocument, ParsedProject } from "../editor/todoParser";
 
-interface SpotlightSearchProps {
+export interface SpotlightCommands {
+  onNewTask?: () => void;
+  onOpenSettings?: () => void;
+  onToggleWidget?: () => void;
+  onCycleTheme?: () => void;
+  onToggleExplorer?: () => void;
+  onNewFile?: () => void;
+  onOpenFile?: () => void;
+  onSaveFile?: () => void;
+  onSaveAsFile?: () => void;
+}
+
+interface SpotlightSearchProps extends SpotlightCommands {
   parsedDoc: ParsedDocument | null;
   content: string;
   onClose: () => void;
   onFocusLine: (lineIndex: number) => void;
 }
 
-type ResultCategory = "task" | "project" | "line";
+type ResultCategory = "task" | "project" | "line" | "command";
+
+interface CommandDef {
+  id: string;
+  label: string;
+  keywords: string;
+  icon: React.ReactNode;
+  run: () => void;
+}
 
 interface SearchResult {
   id: string;
@@ -19,6 +39,7 @@ interface SearchResult {
   secondary?: string;
   state?: string;
   tags?: string[];
+  command?: CommandDef;
 }
 
 function highlightMatch(text: string, query: string): React.ReactNode {
@@ -44,14 +65,101 @@ function stateIcon(state?: string) {
 function categoryIcon(cat: ResultCategory) {
   if (cat === "task") return <CheckSquare size={13} className="text-editor-accent shrink-0" />;
   if (cat === "project") return <FolderOpen size={13} className="text-editor-yellow shrink-0" />;
+  if (cat === "command") return <Terminal size={13} className="text-editor-mauve shrink-0" />;
   return <FileText size={13} className="text-editor-muted shrink-0" />;
 }
 
-export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLine }: SpotlightSearchProps) {
+export default function SpotlightSearch({
+  parsedDoc,
+  content,
+  onClose,
+  onFocusLine,
+  onNewTask,
+  onOpenSettings,
+  onToggleWidget,
+  onCycleTheme,
+  onToggleExplorer,
+  onNewFile,
+  onOpenFile,
+  onSaveFile,
+  onSaveAsFile,
+}: SpotlightSearchProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  const isCommandMode = query.startsWith(">");
+
+  // Build the list of available commands
+  const commands = useMemo<CommandDef[]>(() => {
+    const defs: (CommandDef | false | undefined)[] = [
+      onNewTask && {
+        id: "cmd-new-task",
+        label: "New Task",
+        keywords: "add task new todo create item",
+        icon: <CheckSquare size={13} className="text-editor-accent shrink-0" />,
+        run: onNewTask,
+      },
+      onNewFile && {
+        id: "cmd-new-file",
+        label: "New File",
+        keywords: "new file create project document",
+        icon: <FilePlus size={13} className="text-editor-accent shrink-0" />,
+        run: onNewFile,
+      },
+      onOpenFile && {
+        id: "cmd-open-file",
+        label: "Open File",
+        keywords: "open file load",
+        icon: <FolderOpen size={13} className="text-editor-peach shrink-0" />,
+        run: onOpenFile,
+      },
+      onSaveFile && {
+        id: "cmd-save",
+        label: "Save File",
+        keywords: "save write persist",
+        icon: <Save size={13} className="text-editor-green shrink-0" />,
+        run: onSaveFile,
+      },
+      onSaveAsFile && {
+        id: "cmd-save-as",
+        label: "Save As...",
+        keywords: "save as export copy",
+        icon: <SaveAll size={13} className="text-editor-green shrink-0" />,
+        run: onSaveAsFile,
+      },
+      onOpenSettings && {
+        id: "cmd-settings",
+        label: "Open Settings",
+        keywords: "settings preferences config options",
+        icon: <SettingsIcon size={13} className="text-editor-mauve shrink-0" />,
+        run: onOpenSettings,
+      },
+      onToggleWidget && {
+        id: "cmd-toggle-widget",
+        label: "Toggle Widget",
+        keywords: "widget sticker view toggle show hide",
+        icon: <LayoutGrid size={13} className="text-editor-accent shrink-0" />,
+        run: onToggleWidget,
+      },
+      onToggleExplorer && {
+        id: "cmd-toggle-explorer",
+        label: "Toggle File Explorer",
+        keywords: "explorer sidebar files tree view toggle",
+        icon: <FolderTree size={13} className="text-editor-accent shrink-0" />,
+        run: onToggleExplorer,
+      },
+      onCycleTheme && {
+        id: "cmd-cycle-theme",
+        label: "Cycle Theme (Light / Dark / System)",
+        keywords: "theme dark light system appearance switch view",
+        icon: <Sun size={13} className="text-editor-yellow shrink-0" />,
+        run: onCycleTheme,
+      },
+    ];
+    return defs.filter((d): d is CommandDef => Boolean(d));
+  }, [onNewTask, onOpenSettings, onToggleWidget, onCycleTheme, onToggleExplorer, onNewFile, onOpenFile, onSaveFile, onSaveAsFile]);
 
   // Focus input on mount
   useEffect(() => {
@@ -74,6 +182,25 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
   const lines = useMemo(() => content.split("\n"), [content]);
 
   const results = useMemo<SearchResult[]>(() => {
+    // Command mode: when query starts with '>'
+    if (isCommandMode) {
+      const cq = query.slice(1).trim().toLowerCase();
+      const filtered = cq
+        ? commands.filter(
+            (c) =>
+              c.label.toLowerCase().includes(cq) ||
+              c.keywords.toLowerCase().includes(cq)
+          )
+        : commands;
+      return filtered.map((c) => ({
+        id: c.id,
+        category: "command" as ResultCategory,
+        line: -1,
+        primary: c.label,
+        command: c,
+      }));
+    }
+
     const q = query.trim().toLowerCase();
     if (!q) return [];
 
@@ -132,7 +259,7 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
     }
 
     return out.slice(0, 100);
-  }, [query, parsedDoc, lines]);
+  }, [query, parsedDoc, lines, isCommandMode, commands]);
 
   // Reset active index when results change
   useEffect(() => {
@@ -146,8 +273,13 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
   }, [activeIndex]);
 
   const handleSelect = useCallback(
-    (lineIndex: number) => {
-      onFocusLine(lineIndex);
+    (result: SearchResult) => {
+      if (result.category === "command" && result.command) {
+        result.command.run();
+        onClose();
+        return;
+      }
+      onFocusLine(result.line);
       onClose();
     },
     [onFocusLine, onClose]
@@ -163,7 +295,8 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
         setActiveIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === "Enter" && results.length > 0) {
         e.preventDefault();
-        handleSelect(results[activeIndex]?.line ?? 0);
+        const sel = results[activeIndex];
+        if (sel) handleSelect(sel);
       }
     },
     [results, activeIndex, handleSelect]
@@ -178,7 +311,7 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
       if (!map.has(r.category)) map.set(r.category, []);
       map.get(r.category)!.push({ ...r, globalIdx: idx++ });
     }
-    const order: [ResultCategory, string][] = [["task", "Tasks"], ["project", "Projects"], ["line", "Lines"]];
+    const order: [ResultCategory, string][] = [["command", "Commands"], ["task", "Tasks"], ["project", "Projects"], ["line", "Lines"]];
     for (const [cat, label] of order) {
       const items = map.get(cat);
       if (items?.length) groups.push({ category: cat, label, items });
@@ -207,7 +340,7 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search tasks, projects, or text..."
+            placeholder={isCommandMode ? "Run a command..." : "Search tasks, projects, or text...  (type > for commands)"}
             className="flex-1 bg-transparent text-[14px] text-editor-text placeholder-editor-muted/60 focus:outline-none"
             autoComplete="off"
             spellCheck={false}
@@ -232,7 +365,8 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
 
           {!query && (
             <div className="px-4 py-8 text-center text-[13px] text-editor-muted">
-              Type to search tasks, projects, and text
+              Type to search tasks, projects, and text<br />
+              <span className="text-[11px] text-editor-muted/70">Press <kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">&gt;</kbd> to enter command mode</span>
             </div>
           )}
 
@@ -246,7 +380,7 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
                 <button
                   key={result.id}
                   data-index={result.globalIdx}
-                  onClick={() => handleSelect(result.line)}
+                  onClick={() => handleSelect(result)}
                   onMouseEnter={() => setActiveIndex(result.globalIdx)}
                   className={`flex items-center w-full gap-2.5 px-4 py-2 text-left transition-colors ${
                     result.globalIdx === activeIndex
@@ -254,10 +388,14 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
                       : "hover:bg-editor-border/30"
                   }`}
                 >
-                  {result.category === "task" ? stateIcon(result.state) : categoryIcon(result.category)}
+                  {result.category === "command" && result.command
+                    ? result.command.icon
+                    : result.category === "task"
+                      ? stateIcon(result.state)
+                      : categoryIcon(result.category)}
                   <div className="flex-1 min-w-0">
                     <div className="text-[12px] text-editor-text truncate">
-                      {highlightMatch(result.primary, query)}
+                      {highlightMatch(result.primary, isCommandMode ? query.slice(1).trim() : query)}
                     </div>
                     {result.secondary && (
                       <div className="text-[10px] text-editor-muted truncate mt-0.5">
@@ -277,9 +415,11 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
                       ))}
                     </div>
                   )}
-                  <span className="text-[10px] text-editor-muted/50 tabular-nums shrink-0 ml-1">
-                    :{result.line + 1}
-                  </span>
+                  {result.category !== "command" && (
+                    <span className="text-[10px] text-editor-muted/50 tabular-nums shrink-0 ml-1">
+                      :{result.line + 1}
+                    </span>
+                  )}
                   {result.globalIdx === activeIndex && (
                     <ArrowRight size={12} className="text-editor-accent shrink-0" />
                   )}
@@ -293,7 +433,7 @@ export default function SpotlightSearch({ parsedDoc, content, onClose, onFocusLi
         {results.length > 0 && (
           <div className="flex items-center gap-4 px-4 py-2 border-t border-editor-border/40 text-[10px] text-editor-muted">
             <span><kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">↑↓</kbd> navigate</span>
-            <span><kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">Enter</kbd> go to line</span>
+            <span><kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">Enter</kbd> {isCommandMode ? "run command" : "go to line"}</span>
             <span><kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">Esc</kbd> close</span>
           </div>
         )}
