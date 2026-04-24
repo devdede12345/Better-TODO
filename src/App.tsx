@@ -561,7 +561,7 @@ function App() {
   // ── Dashboard View ──
   if (!isEditing) {
     return (
-      <div className={`flex flex-col h-screen ${shellBgClass}`}>
+      <div className={`flex flex-col h-full ${shellBgClass}`}>
         {/* Title Bar (minimal, for window drag) */}
         <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
           {isMac && <div className="w-[78px] shrink-0" />}
@@ -602,7 +602,7 @@ function App() {
 
   // ── Editor View ──
   return (
-    <div className={`flex flex-col h-screen ${shellBgClass}`}>
+    <div className={`flex flex-col h-full ${shellBgClass}`}>
       {/* Title Bar */}
       <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
         {isMac && <div className="w-[78px] shrink-0" />}
