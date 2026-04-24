@@ -399,6 +399,7 @@ export default function StickerApp() {
         {/* Header */}
         <div className="wv2-header">
           <div className="wv2-header-left">
+            <GripVertical size={14} className="wv2-grip" />
             <Sun size={12} style={{ color: "#fbbf24", flexShrink: 0 }} />
             <span className="wv2-title">Day Todo</span>
             <span className="wv2-title-arrow">▾</span>

@@ -723,6 +723,7 @@ body.sticker-widget-mode .wv2-root {
   font-family: var(--app-font-family, system-ui, sans-serif);
   color: rgba(255, 255, 255, 0.90);
   border: 1px solid rgba(255, 255, 255, 0.10);
+  -webkit-app-region: drag;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -733,9 +734,9 @@ body.sticker-widget-mode .wv2-header {
   padding: 7px 10px;
   gap: 6px;
   background: rgba(0, 0, 0, 0.18);
-  -webkit-app-region: drag;
   user-select: none;
   flex-shrink: 0;
+  cursor: grab;
 }
 
 body.sticker-widget-mode .wv2-header-left {
@@ -745,8 +746,13 @@ body.sticker-widget-mode .wv2-header-left {
   flex-shrink: 0;
 }
 
+body.sticker-widget-mode .wv2-grip {
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
 body.sticker-widget-mode .wv2-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.88);
 }
@@ -763,6 +769,7 @@ body.sticker-widget-mode .wv2-date-nav {
   justify-content: center;
   gap: 4px;
   -webkit-app-region: no-drag;
+  cursor: default;
 }
 
 body.sticker-widget-mode .wv2-nav-btn {
@@ -783,7 +790,7 @@ body.sticker-widget-mode .wv2-nav-btn:hover {
 }
 
 body.sticker-widget-mode .wv2-date-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.88);
   white-space: nowrap;
@@ -795,6 +802,7 @@ body.sticker-widget-mode .wv2-header-right {
   gap: 3px;
   flex-shrink: 0;
   -webkit-app-region: no-drag;
+  cursor: default;
 }
 
 body.sticker-widget-mode .wv2-action-btn {
@@ -828,6 +836,7 @@ body.sticker-widget-mode .wv2-input-wrap {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   flex-shrink: 0;
   -webkit-app-region: no-drag;
+  cursor: default;
 }
 
 body.sticker-widget-mode .wv2-input {
@@ -836,8 +845,8 @@ body.sticker-widget-mode .wv2-input {
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 7px;
   color: rgba(255, 255, 255, 0.90);
-  font-size: 12px;
-  padding: 7px 10px;
+  font-size: 13px;
+  padding: 8px 10px;
   outline: none;
   box-sizing: border-box;
   font-family: inherit;
@@ -859,6 +868,7 @@ body.sticker-widget-mode .wv2-list {
   flex: 1;
   overflow-y: auto;
   -webkit-app-region: no-drag;
+  cursor: default;
 }
 
 body.sticker-widget-mode .wv2-list::-webkit-scrollbar {
@@ -877,7 +887,7 @@ body.sticker-widget-mode .wv2-list::-webkit-scrollbar-thumb {
 body.sticker-widget-mode .wv2-empty {
   text-align: center;
   color: rgba(255, 255, 255, 0.30);
-  font-size: 12px;
+  font-size: 13px;
   padding: 36px 16px;
 }
 
@@ -906,7 +916,7 @@ body.sticker-widget-mode .wv2-accent {
 
 body.sticker-widget-mode .wv2-row-content {
   flex: 1;
-  padding: 9px 10px 9px 8px;
+  padding: 10px 12px 10px 8px;
   min-width: 0;
 }
 
@@ -919,15 +929,15 @@ body.sticker-widget-mode .wv2-row-main {
 
 body.sticker-widget-mode .wv2-checkbox {
   flex-shrink: 0;
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border: 1.5px solid;
   border-radius: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   padding: 0;
   background: transparent;
@@ -937,7 +947,7 @@ body.sticker-widget-mode .wv2-checkbox {
 
 body.sticker-widget-mode .wv2-text {
   flex: 1;
-  font-size: 12px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.88);
   white-space: nowrap;
   overflow: hidden;
@@ -952,14 +962,14 @@ body.sticker-widget-mode .wv2-text.struck {
 
 body.sticker-widget-mode .wv2-tag {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: #4dd0e1;
   white-space: nowrap;
 }
 
 body.sticker-widget-mode .wv2-date {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.36);
   white-space: nowrap;
   margin-left: auto;
@@ -971,7 +981,7 @@ body.sticker-widget-mode .wv2-row-sub {
 }
 
 body.sticker-widget-mode .wv2-time {
-  font-size: 11px;
+  font-size: 12px;
   color: #4dd0e1;
 }
 
