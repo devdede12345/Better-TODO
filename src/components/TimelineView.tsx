@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink, Clock3, Palette } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -232,6 +232,8 @@ const SEGMENT_COLORS = [
 
 const ZOOM_ORDER: ZoomLevel[] = ["hour", "day", "week", "month"];
 
+const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function TimelineView({ parsedDoc, content, onClose, onFocusLine }: TimelineViewProps) {
@@ -239,6 +241,19 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
   const [hoveredTask, setHoveredTask] = useState<TimelineTask | null>(null);
   const [focusedTask, setFocusedTask] = useState<TimelineTask | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // On Windows: darken the title bar overlay while the timeline is open
+  useEffect(() => {
+    if (isMac || !window.electronAPI?.setTitleBarOverlay) return;
+    window.electronAPI.setTitleBarOverlay("#000000", "#888888");
+    return () => {
+      // Restore theme colour on close
+      const dark = document.documentElement.classList.contains("theme-dark");
+      const color = dark ? "#1e1e2e" : "#eef2ff";
+      const symbolColor = dark ? "#cdd6f4" : "#1f2937";
+      window.electronAPI!.setTitleBarOverlay(color, symbolColor);
+    };
+  }, []);
 
   // Close on Escape (dismiss focus panel first, then timeline)
   useEffect(() => {
@@ -410,7 +425,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
   return (
     <div
-      className="fixed inset-0 z-[200] bg-black/85 flex items-center justify-center p-4"
+      className={`fixed inset-0 z-[200] bg-black/60 flex items-center justify-center px-10 pb-8 ${isMac ? "pt-6" : "pt-10"}`}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -656,6 +671,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
               emptyHint="No archived tasks"
               onPick={handleTaskClick}
               categoryColorMap={categoryColorMap}
+              sortable
             />
           </div>
         </div>
@@ -891,13 +907,36 @@ function TaskBucket({
   emptyHint,
   onPick,
   categoryColorMap,
+  sortable = false,
 }: {
   title: string;
   tasks: TimelineTask[];
   emptyHint: string;
   onPick: (line: number) => void;
   categoryColorMap: Map<string, string>;
+  sortable?: boolean;
 }) {
+  const [sortMode, setSortMode] = useState<"time" | "color">("time");
+
+  // Apply sorting when sortable is enabled. Otherwise, use tasks as provided.
+  const displayTasks = useMemo(() => {
+    if (!sortable) return tasks;
+    const arr = [...tasks];
+    if (sortMode === "color") {
+      arr.sort((a, b) => {
+        const colorA = categoryColorMap.get(a.category) ?? "";
+        const colorB = categoryColorMap.get(b.category) ?? "";
+        if (colorA !== colorB) return colorA.localeCompare(colorB);
+        // Within the same color, keep newest-done first
+        const ad = a.doneAt?.getTime() ?? 0;
+        const bd = b.doneAt?.getTime() ?? 0;
+        return bd - ad;
+      });
+    }
+    // "time" mode keeps the parent-provided order (doneAt desc for archived)
+    return arr;
+  }, [sortable, sortMode, tasks, categoryColorMap]);
+
   return (
     <div>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-editor-muted mb-3 select-none">
@@ -905,13 +944,24 @@ function TaskBucket({
         <span>{title}</span>
         <span className="text-editor-muted/70">·</span>
         <span className="text-editor-muted/70">{tasks.length}</span>
+        {sortable && tasks.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setSortMode((m) => (m === "time" ? "color" : "time"))}
+            className="ml-1 flex items-center gap-1 px-2 py-0.5 text-[10px] normal-case tracking-normal rounded text-editor-subtext hover:text-editor-text hover:bg-editor-overlay/40 transition-colors"
+            title="Click to toggle sort order"
+          >
+            {sortMode === "time" ? <Clock3 size={10} /> : <Palette size={10} />}
+            <span>Sort by {sortMode}</span>
+          </button>
+        )}
         <span className="flex-1 border-t border-editor-border/60" />
       </div>
-      {tasks.length === 0 ? (
+      {displayTasks.length === 0 ? (
         <div className="text-[11px] text-editor-muted/70 italic px-1">{emptyHint}</div>
       ) : (
         <ul className="space-y-1.5">
-          {tasks.map((t) => (
+          {displayTasks.map((t) => (
             <li key={t.line}>
               <button
                 type="button"
