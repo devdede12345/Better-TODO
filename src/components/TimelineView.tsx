@@ -285,12 +285,12 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
   return (
     <div
-      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] bg-black/85 flex items-center justify-center p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full h-full max-w-[1400px] max-h-[900px] bg-editor-bg border border-editor-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full h-full bg-editor-bg border border-editor-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-editor-border shrink-0">
           <div className="flex items-center gap-2">
@@ -351,7 +351,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
           <div ref={scrollRef} className="h-full overflow-auto relative">
             <div style={{ width: timelineWidth, minHeight: canvasHeight, position: "relative" }}>
               <div
-                className="sticky top-0 z-20 h-8 border-b border-editor-border bg-editor-bg/95 backdrop-blur-sm"
+                className="sticky top-0 z-20 h-8 border-b border-editor-border bg-editor-bg"
                 style={{ width: timelineWidth }}
               >
                 {ticks.map((tk, i) => (
@@ -437,7 +437,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       className="absolute px-1.5 py-0.5 text-[10px] rounded border border-editor-border bg-editor-bg/95 text-editor-subtext whitespace-nowrap"
                       style={{ left: startX, top: y + 12, transform: "translateX(-50%)" }}
                     >
-                      Start {fmtDate(new Date(seg.start))}
+                      {formatNodeTime(new Date(seg.start))}
                     </div>
                     <button
                       type="button"
@@ -452,7 +452,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       className="absolute px-1.5 py-0.5 text-[10px] rounded border border-editor-border bg-editor-bg/95 text-editor-subtext whitespace-nowrap"
                       style={{ left: endX, top: y + 12, transform: "translateX(-50%)" }}
                     >
-                      End ({seg.endSource}) {fmtDate(new Date(seg.end))}
+                      {formatNodeTime(new Date(seg.end))}
                     </div>
 
                     <div
@@ -504,5 +504,10 @@ function fmtDate(d: Date): string {
 
 function fmtRange(startMs: number, endMs: number): string {
   return `${fmtDate(new Date(startMs))} → ${fmtDate(new Date(endMs))}`;
+}
+
+function formatNodeTime(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, "0");
+  return `${hh}:00`;
 }
 
