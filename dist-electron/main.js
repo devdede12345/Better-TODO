@@ -49,7 +49,7 @@ function pushRecentFile(filePath) {
   saveRecentFiles(list.slice(0, MAX_RECENT_FILES));
 }
 const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
-const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1e3;
+const COMPLETED_TASK_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1e3;
 let completedTaskCleanupTimer = null;
 const fileContentCache = /* @__PURE__ */ new Map();
@@ -191,17 +191,45 @@ function extractTaskStatusTimestamp(line) {
 function pruneExpiredCompletedTasks(content, nowMs = Date.now()) {
   const lines = content.split("\n");
   const kept = [];
+  const toArchive = [];
   let changed = false;
-  for (const line of lines) {
-    if (/^\s*[✔✘]\s+/.test(line)) {
+  let archiveIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^Archive:\s*$/.test(lines[i])) {
+      archiveIdx = i;
+      break;
+    }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const insideArchive = archiveIdx !== -1 && i > archiveIdx;
+    if (!insideArchive && /^\s*[✔✘]\s+/.test(line)) {
       const statusTs = extractTaskStatusTimestamp(line);
       if (statusTs && nowMs - statusTs >= COMPLETED_TASK_TTL_MS) {
+        toArchive.push(line);
         changed = true;
         continue;
       }
     }
     kept.push(line);
   }
+  if (!changed) return { content, changed };
+  let keptArchiveIdx = -1;
+  for (let i = 0; i < kept.length; i++) {
+    if (/^Archive:\s*$/.test(kept[i])) {
+      keptArchiveIdx = i;
+      break;
+    }
+  }
+  if (keptArchiveIdx === -1) {
+    if (kept.length > 0 && kept[kept.length - 1].trim() !== "") {
+      kept.push("");
+    }
+    kept.push("Archive:");
+    keptArchiveIdx = kept.length - 1;
+  }
+  const archivedLines = toArchive.map((l) => `  ${l.trimStart()}`);
+  kept.splice(keptArchiveIdx + 1, 0, ...archivedLines);
   return { content: kept.join("\n"), changed };
 }
 function cleanupExpiredCompletedTasksInFile(filePath) {
