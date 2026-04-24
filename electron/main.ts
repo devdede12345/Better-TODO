@@ -909,11 +909,8 @@ function createQuickEntryWindow() {
 }
 
 function toggleQuickEntry() {
-  if (quickEntryWindow && !quickEntryWindow.isDestroyed() && quickEntryWindow.isVisible()) {
-    quickEntryWindow.hide();
-  } else {
-    createQuickEntryWindow();
-  }
+  // Show main window and open Spotlight search instead of quick entry window
+  sendNativeMenuAction("edit:find");
 }
 
 // ─── Tray ───────────────────────────────────────────────────────────────────
@@ -943,7 +940,7 @@ function createTray() {
         mainWindow?.focus();
       },
     },
-    { label: "Quick Entry", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
+    { label: "Spotlight Search", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);

@@ -162,7 +162,7 @@ export default function Dashboard({ onNew, onOpen, onOpenRecent, onSettings }: D
 
       {/* Version / footer */}
       <div className="mt-6 text-xs text-editor-muted font-mono opacity-50">
-        v1.0.0
+        v1.4.0
       </div>
     </div>
   );

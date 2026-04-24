@@ -101,8 +101,8 @@ function App() {
 
   // Effective width accounts for UI zoom (zoom shrinks the available CSS pixels)
   const effectiveWidth = windowWidth / uiScale;
-  const showMenuBar = effectiveWidth >= 900;
-  const showFileName = effectiveWidth >= 640;
+  const showMenuBar = effectiveWidth >= 720;
+  const showFileName = effectiveWidth >= 480;
   const sc = useCallback((win: string, mac: string) => (isMac ? mac : win), []);
 
   // Apply UI scale via CSS zoom on document root and persist
@@ -122,17 +122,20 @@ function App() {
       // "=" covers both "=" and "+" (shifted) on most layouts
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
+        e.stopPropagation();
         setUiScale((s) => Math.min(SCALE_MAX, Math.round((s + SCALE_STEP) * 100) / 100));
       } else if (e.key === "-" || e.key === "_") {
         e.preventDefault();
+        e.stopPropagation();
         setUiScale((s) => Math.max(SCALE_MIN, Math.round((s - SCALE_STEP) * 100) / 100));
       } else if (e.key === "0") {
         e.preventDefault();
+        e.stopPropagation();
         setUiScale(1);
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, []);
   const shellBgClass = isMac
     ? resolvedTheme === "light"
@@ -606,7 +609,7 @@ function App() {
       {/* Title Bar */}
       <div className={`titlebar-drag relative z-40 overflow-visible flex items-center border-b border-editor-border px-4 select-none shrink-0 ${topBarHeightClass} ${chromeBgClass}`}>
         {isMac && <div className="w-[78px] shrink-0" />}
-        <div className="flex items-center min-w-0">
+        <div className="flex items-center shrink-0">
           {showFileName && (
             <div className="flex items-center gap-2 titlebar-no-drag">
               <FileText size={14} className="text-editor-accent" />
@@ -732,7 +735,7 @@ function App() {
           )}
         </div>
 
-        <div className={`titlebar-no-drag ml-3 min-w-[240px] max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border ${nextReminder?.isOverdue ? "bg-red-500/10" : "bg-editor-overlay/60"}`}>
+        <div className={`titlebar-no-drag ml-3 min-w-0 max-w-[420px] hidden md:flex items-center gap-2 px-2 py-1 rounded-md border border-editor-border overflow-hidden ${nextReminder?.isOverdue ? "bg-red-500/10" : "bg-editor-overlay/60"}`}>
           <span className="text-[10px] text-editor-muted uppercase tracking-wide">Next</span>
           <span className="flex-1 truncate text-[11px] text-editor-subtext" title={nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}>
             {nextReminder ? `${nextReminder.projectName} · ${nextReminder.taskText} @${formatDueAt(nextReminder.dueAt)}` : "No active reminders"}
@@ -825,6 +828,15 @@ function App() {
           content={content}
           onClose={() => setSpotlightOpen(false)}
           onFocusLine={spotlightFocusLine}
+          onNewTask={createNewTask}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleWidget={handleWidgetToggle}
+          onCycleTheme={cycleThemeMode}
+          onToggleExplorer={() => setShowExplorer((prev) => !prev)}
+          onNewFile={handleNew}
+          onOpenFile={handleOpen}
+          onSaveFile={handleSave}
+          onSaveAsFile={handleSaveAs}
         />
       )}
 

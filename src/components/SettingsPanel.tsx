@@ -102,13 +102,13 @@ export default function SettingsPanel({ settings, onUpdate, onReset, onClose }: 
   const sliderClass = "flex-1 h-1 accent-[rgb(var(--editor-accent))] bg-editor-border rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[rgb(var(--editor-accent))] [&::-webkit-slider-thumb]:shadow-md";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/40 backdrop-blur-sm flex items-start justify-center py-8 px-4">
       <div
         ref={panelRef}
-        className="w-[480px] max-h-[85vh] overflow-y-auto rounded-xl border border-editor-border bg-editor-bg shadow-2xl"
+        className="w-[480px] max-w-full my-auto rounded-xl border border-editor-border bg-editor-bg shadow-2xl"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-editor-border sticky top-0 bg-editor-bg z-10">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-editor-border bg-editor-bg">
           <h2 className="text-sm font-semibold text-editor-text">Settings</h2>
           <div className="flex items-center gap-1">
             <button

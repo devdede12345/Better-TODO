@@ -4,7 +4,6 @@ const path = require("path");
 const fs = require("fs");
 let mainWindow = null;
 let widgetWindow = null;
-let quickEntryWindow = null;
 let tray = null;
 let currentFilePath = null;
 let stickerLocked = false;
@@ -98,6 +97,23 @@ function buildFileTree(rootPath) {
     rootName: rootPath.split(/[\\/]/).pop() || rootPath,
     children: walk(rootPath)
   };
+}
+function sendNativeMenuAction(action) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const target = mainWindow;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+  if (target.webContents.isLoadingMainFrame()) {
+    target.webContents.once("did-finish-load", () => {
+      target.webContents.send("nativeMenu:action", action);
+    });
+    return;
+  }
+  target.webContents.send("nativeMenu:action", action);
 }
 function toValidTimestamp(year, month, day, hour, minute) {
   if (month < 1 || month > 12) return null;
@@ -526,57 +542,8 @@ function createWidgetWindow() {
   });
   mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", true);
 }
-function createQuickEntryWindow() {
-  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
-    quickEntryWindow.show();
-    quickEntryWindow.focus();
-    quickEntryWindow.webContents.send("quickentry:show");
-    return;
-  }
-  const { width: screenW } = electron.screen.getPrimaryDisplay().workAreaSize;
-  quickEntryWindow = new electron.BrowserWindow({
-    width: 520,
-    height: 180,
-    x: Math.round((screenW - 520) / 2),
-    y: 120,
-    frame: false,
-    alwaysOnTop: true,
-    transparent: true,
-    resizable: false,
-    skipTaskbar: true,
-    show: false,
-    hasShadow: true,
-    backgroundColor: "#00000000",
-    vibrancy: isMac ? "popover" : void 0,
-    visualEffectState: isMac ? "active" : void 0,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-  if (process.env.VITE_DEV_SERVER_URL) {
-    quickEntryWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/quickentry.html");
-  } else {
-    quickEntryWindow.loadFile(path.join(__dirname, "../dist/quickentry.html"));
-  }
-  quickEntryWindow.once("ready-to-show", () => {
-    quickEntryWindow == null ? void 0 : quickEntryWindow.show();
-    quickEntryWindow == null ? void 0 : quickEntryWindow.focus();
-  });
-  quickEntryWindow.on("blur", () => {
-    quickEntryWindow == null ? void 0 : quickEntryWindow.hide();
-  });
-  quickEntryWindow.on("closed", () => {
-    quickEntryWindow = null;
-  });
-}
 function toggleQuickEntry() {
-  if (quickEntryWindow && !quickEntryWindow.isDestroyed() && quickEntryWindow.isVisible()) {
-    quickEntryWindow.hide();
-  } else {
-    createQuickEntryWindow();
-  }
+  sendNativeMenuAction("edit:find");
 }
 function createTray() {
   const iconPath = path.join(__dirname, "../build/icon.png");
@@ -599,7 +566,7 @@ function createTray() {
         mainWindow == null ? void 0 : mainWindow.focus();
       }
     },
-    { label: "Quick Entry", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
+    { label: "Spotlight Search", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
     { type: "separator" },
     { label: "Quit", click: () => electron.app.quit() }
   ]);
@@ -969,14 +936,8 @@ electron.ipcMain.handle("quickentry:submit", (_event, text) => {
       widgetWindow.webContents.send("sticker:update", content, fn);
     }
   }
-  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
-    quickEntryWindow.hide();
-  }
 });
 electron.ipcMain.handle("quickentry:hide", () => {
-  if (quickEntryWindow && !quickEntryWindow.isDestroyed()) {
-    quickEntryWindow.hide();
-  }
 });
 electron.ipcMain.handle("system:getSettings", () => {
   const s = loadSystemSettings();
