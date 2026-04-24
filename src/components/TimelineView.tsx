@@ -131,7 +131,7 @@ function assignLanes(items: { task: TimelineTask; start: number; end: number; en
 function laneOffset(lane: number): number {
   const level = Math.floor(lane / 2) + 1;
   const sign = lane % 2 === 0 ? -1 : 1;
-  return sign * level * 34;
+  return sign * level * 56;
 }
 
 // ─── Zoom configuration ─────────────────────────────────────────────────────
@@ -139,10 +139,14 @@ function laneOffset(lane: number): number {
 interface ZoomConfig {
   label: string;
   pxPerMin: number;
-  /** Tick interval in minutes */
+  /** Primary tick interval in minutes (smaller, e.g. hours) */
   tickMin: number;
-  /** Format tick label */
+  /** Format primary tick label */
   fmt: (d: Date) => string;
+  /** Secondary (major) tick interval in minutes (e.g. days), 0 = none */
+  majorTickMin: number;
+  /** Format secondary (major) tick label */
+  majorFmt: (d: Date) => string;
   /** Total span (minutes) to show centered on "now" by default */
   defaultSpanMin: number;
 }
@@ -151,32 +155,54 @@ const ZOOM_CONFIGS: Record<ZoomLevel, ZoomConfig> = {
   hour: {
     label: "Hour",
     pxPerMin: 4,
-    tickMin: 60,
+    tickMin: 15,
     fmt: (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
-    defaultSpanMin: 24 * 60,
+    majorTickMin: 60,
+    majorFmt: (d) => `${String(d.getHours()).padStart(2, "0")}:00`,
+    defaultSpanMin: 12 * 60,
   },
   day: {
     label: "Day",
-    pxPerMin: 0.6,
-    tickMin: 24 * 60,
-    fmt: (d) => `${d.getMonth() + 1}/${d.getDate()}`,
-    defaultSpanMin: 14 * 24 * 60,
+    pxPerMin: 2.5,
+    tickMin: 60,
+    fmt: (d) => `${String(d.getHours()).padStart(2, "0")}:00`,
+    majorTickMin: 24 * 60,
+    majorFmt: (d) => `${d.getMonth() + 1}/${d.getDate()}`,
+    defaultSpanMin: 3 * 24 * 60,
   },
   week: {
     label: "Week",
-    pxPerMin: 0.12,
-    tickMin: 7 * 24 * 60,
+    pxPerMin: 0.35,
+    tickMin: 24 * 60,
     fmt: (d) => `${d.getMonth() + 1}/${d.getDate()}`,
-    defaultSpanMin: 12 * 7 * 24 * 60,
+    majorTickMin: 7 * 24 * 60,
+    majorFmt: (d) => `Week of ${d.getMonth() + 1}/${d.getDate()}`,
+    defaultSpanMin: 8 * 7 * 24 * 60,
   },
   month: {
     label: "Month",
     pxPerMin: 0.03,
     tickMin: 30 * 24 * 60,
     fmt: (d) => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}`,
+    majorTickMin: 0,
+    majorFmt: () => "",
     defaultSpanMin: 12 * 30 * 24 * 60,
   },
 };
+
+/** Palette of distinct segment colours, cycled per task */
+const SEGMENT_COLORS = [
+  "#63b3ed", // blue
+  "#48bb78", // green
+  "#f6ad55", // orange
+  "#fc8181", // red
+  "#b794f4", // purple
+  "#f687b3", // pink
+  "#4fd1c5", // teal
+  "#fbd38d", // yellow
+  "#9ae6b4", // light green
+  "#76e4f7", // cyan
+];
 
 const ZOOM_ORDER: ZoomLevel[] = ["hour", "day", "week", "month"];
 
@@ -274,16 +300,26 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
   const msToPx = useCallback((ms: number) => ((ms - originMs) / 60000) * cfg.pxPerMin, [originMs, cfg.pxPerMin]);
 
-  // Build tick marks
+  // Build tick marks (minor + major)
   const ticks = useMemo(() => {
-    const ticks: { ms: number; label: string }[] = [];
+    const out: { ms: number; label: string }[] = [];
     const tickMs = cfg.tickMin * 60000;
-    // Snap origin to nearest tick
     const start = Math.ceil(originMs / tickMs) * tickMs;
     for (let t = start; t <= endMs; t += tickMs) {
-      ticks.push({ ms: t, label: cfg.fmt(new Date(t)) });
+      out.push({ ms: t, label: cfg.fmt(new Date(t)) });
     }
-    return ticks;
+    return out;
+  }, [originMs, endMs, cfg]);
+
+  const majorTicks = useMemo(() => {
+    if (!cfg.majorTickMin) return [];
+    const out: { ms: number; label: string }[] = [];
+    const tickMs = cfg.majorTickMin * 60000;
+    const start = Math.ceil(originMs / tickMs) * tickMs;
+    for (let t = start; t <= endMs; t += tickMs) {
+      out.push({ ms: t, label: cfg.majorFmt(new Date(t)) });
+    }
+    return out;
   }, [originMs, endMs, cfg]);
 
   // Scroll to "now" initially
@@ -327,10 +363,11 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
   };
 
   const maxLane = scheduledSegments.reduce((m, s) => Math.max(m, s.lane), -1);
+  const headerH = majorTicks.length > 0 ? 52 : 32;
   const topPad = 48;
-  const baseY = topPad + (maxLane < 0 ? 70 : Math.max(70, (Math.floor(maxLane / 2) + 1) * 34 + 20));
-  const bottomPad = 52;
-  const canvasHeight = baseY + (maxLane < 0 ? 70 : (Math.floor(maxLane / 2) + 1) * 34 + 30) + bottomPad;
+  const baseY = headerH + topPad + (maxLane < 0 ? 70 : Math.max(70, (Math.floor(maxLane / 2) + 1) * 50 + 20));
+  const bottomPad = 80;
+  const canvasHeight = baseY + (maxLane < 0 ? 70 : (Math.floor(maxLane / 2) + 1) * 50 + 30) + bottomPad;
 
   return (
     <div
@@ -393,30 +430,51 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
         <div className="shrink-0 min-h-0" style={{ height: "45%" }}>
           <div ref={scrollRef} className="h-full overflow-auto relative">
             <div style={{ width: timelineWidth, minHeight: canvasHeight, position: "relative" }}>
+              {/* ── Sticky two-row header: major labels + minor ticks ── */}
               <div
-                className="sticky top-0 z-20 h-8 border-b border-editor-border bg-editor-bg"
-                style={{ width: timelineWidth }}
+                className="sticky top-0 z-20 border-b border-editor-border bg-editor-bg"
+                style={{ width: timelineWidth, height: headerH }}
               >
-                {ticks.map((tk, i) => (
+                {/* Major date labels (top row) */}
+                {majorTicks.map((tk, i) => (
                   <div
-                    key={i}
-                    className="absolute top-0 h-full flex items-center text-[10px] text-editor-muted pl-1 border-l border-editor-border/60"
-                    style={{ left: msToPx(tk.ms) }}
+                    key={`maj-${i}`}
+                    className="absolute top-0 flex items-center text-[11px] text-editor-text font-medium pl-2"
+                    style={{ left: msToPx(tk.ms), height: majorTicks.length > 0 ? 22 : 0 }}
                   >
                     {tk.label}
                   </div>
                 ))}
+                {/* Minor hour/tick labels (bottom row) */}
+                {ticks.map((tk, i) => (
+                  <div
+                    key={`min-${i}`}
+                    className="absolute flex items-center text-[10px] text-editor-muted pl-1 border-l border-editor-border/40"
+                    style={{
+                      left: msToPx(tk.ms),
+                      top: majorTicks.length > 0 ? 22 : 0,
+                      height: majorTicks.length > 0 ? 30 : 32,
+                    }}
+                  >
+                    {tk.label}
+                  </div>
+                ))}
+                {/* NOW marker in header */}
                 <div
-                  className="absolute top-0 h-full flex items-center text-[10px] text-editor-accent font-medium pl-1"
-                  style={{ left: nowPx }}
+                  className="absolute top-0 flex items-center text-[10px] text-editor-accent font-medium pl-1"
+                  style={{ left: nowPx, height: headerH }}
                 >
                   <span className="bg-editor-accent/10 px-1 rounded">NOW</span>
                 </div>
               </div>
 
-              <div style={{ position: "absolute", top: 32, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
+              {/* Vertical grid lines */}
+              <div style={{ position: "absolute", top: headerH, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
                 {ticks.map((tk, i) => (
-                  <div key={i} style={{ left: msToPx(tk.ms) }} className="absolute top-0 bottom-0 border-l border-editor-border/25" />
+                  <div key={i} style={{ left: msToPx(tk.ms) }} className="absolute top-0 bottom-0 border-l border-editor-border/20" />
+                ))}
+                {majorTicks.map((tk, i) => (
+                  <div key={`mg-${i}`} style={{ left: msToPx(tk.ms) }} className="absolute top-0 bottom-0 border-l border-editor-border/50" />
                 ))}
                 <div style={{ left: nowPx }} className="absolute top-0 bottom-0 border-l-2 border-editor-accent/60" />
               </div>
@@ -436,33 +494,36 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                 </div>
               )}
 
-              {scheduledSegments.map((seg) => {
+              {scheduledSegments.map((seg, idx) => {
                 const startX = msToPx(seg.start);
                 const endX = msToPx(seg.end);
                 const y = baseY + laneOffset(seg.lane);
-                const color =
-                  seg.task.state === "done"
-                    ? "#48bb78"
-                    : seg.task.state === "cancelled"
-                    ? "#f56565"
-                    : "#63b3ed";
+                const color = SEGMENT_COLORS[idx % SEGMENT_COLORS.length];
                 const isOngoing = seg.endSource === "ongoing";
+                const barW = Math.max(4, endX - startX);
+                const labelX = startX + barW / 2;
+                const timeLabel = `${fmtTime(new Date(seg.start))} - ${isOngoing ? "now" : fmtTime(new Date(seg.end))}`;
 
                 return (
                   <div key={seg.task.line}>
-                    <div className="absolute w-px bg-white/30" style={{ left: startX, top: Math.min(baseY, y), height: Math.abs(baseY - y) }} />
+                    {/* Vertical connector from baseline to lane */}
+                    <div className="absolute w-px" style={{ left: startX, top: Math.min(baseY, y), height: Math.abs(baseY - y), backgroundColor: color, opacity: 0.25 }} />
                     {!isOngoing && (
-                      <div className="absolute w-px bg-white/30" style={{ left: endX, top: Math.min(baseY, y), height: Math.abs(baseY - y) }} />
+                      <div className="absolute w-px" style={{ left: endX, top: Math.min(baseY, y), height: Math.abs(baseY - y), backgroundColor: color, opacity: 0.25 }} />
                     )}
 
+                    {/* Horizontal bar */}
                     <div
-                      className="absolute"
+                      className="absolute cursor-pointer"
                       style={{
                         left: startX,
-                        top: y,
-                        width: Math.max(2, endX - startX),
-                        borderTop: `2px ${isOngoing ? "dashed" : "solid"} ${color}`,
+                        top: y - 1.5,
+                        width: barW,
+                        height: 3,
+                        background: isOngoing ? undefined : color,
+                        borderTop: isOngoing ? `3px dashed ${color}` : undefined,
                         opacity: isOngoing ? 0.75 : 1,
+                        borderRadius: 2,
                       }}
                       onMouseEnter={() => setHoveredTask(seg.task)}
                       onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
@@ -470,26 +531,51 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       title={`${seg.task.cleanText}\n${fmtRange(seg.start, seg.end)}`}
                     />
 
+                    {/* Start dot (filled) */}
                     <button
                       type="button"
                       onClick={() => handleTaskClick(seg.task.line)}
                       onMouseEnter={() => setHoveredTask(seg.task)}
                       onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg"
-                      style={{ left: startX, top: y, borderColor: color }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2"
+                      style={{ left: startX, top: y, borderColor: color, backgroundColor: color }}
                       title={seg.task.cleanText}
                     />
+                    {/* End dot */}
                     {!isOngoing && (
                       <button
                         type="button"
                         onClick={() => handleTaskClick(seg.task.line)}
                         onMouseEnter={() => setHoveredTask(seg.task)}
                         onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                        className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg"
-                        style={{ left: endX, top: y, borderColor: color }}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2"
+                        style={{ left: endX, top: y, borderColor: color, backgroundColor: color }}
                         title={seg.task.cleanText}
                       />
                     )}
+
+                    {/* Task name label */}
+                    <div
+                      className="absolute text-[10px] text-editor-text font-medium whitespace-nowrap pointer-events-none select-none"
+                      style={{
+                        left: labelX,
+                        top: y + 10,
+                        transform: "translateX(-50%)",
+                      }}
+                    >
+                      {seg.task.cleanText}
+                    </div>
+                    {/* Time range label */}
+                    <div
+                      className="absolute text-[9px] text-editor-muted whitespace-nowrap pointer-events-none select-none"
+                      style={{
+                        left: labelX,
+                        top: y + 24,
+                        transform: "translateX(-50%)",
+                      }}
+                    >
+                      {timeLabel}
+                    </div>
                   </div>
                 );
               })}
@@ -561,6 +647,10 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
 function fmtDate(d: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function fmtTime(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function fmtRange(startMs: number, endMs: number): string {
