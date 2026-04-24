@@ -70,6 +70,7 @@ const REMINDER_REPEAT_MS = 5 * 60 * 1000;
 const COMPLETED_TASK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1000;
 let completedTaskCleanupTimer: NodeJS.Timeout | null = null;
+let everydayResetTimer: ReturnType<typeof setTimeout> | null = null;
 
 // File content cache to reduce I/O
 interface CacheEntry {
@@ -395,7 +396,7 @@ function pruneExpiredCompletedTasks(content: string, nowMs = Date.now()): { cont
     const line = lines[i];
     // Skip expiration check for lines already inside Archive: section
     const insideArchive = archiveIdx !== -1 && i > archiveIdx;
-    if (!insideArchive && /^\s*[✔✘]\s+/.test(line)) {
+    if (!insideArchive && /^\s*[✔✘]\s+/.test(line) && !/@everyday/.test(line)) {
       const statusTs = extractTaskStatusTimestamp(line);
       if (statusTs && nowMs - statusTs >= COMPLETED_TASK_TTL_MS) {
         toArchive.push(line);
@@ -430,6 +431,61 @@ function pruneExpiredCompletedTasks(content: string, nowMs = Date.now()): { cont
   kept.splice(keptArchiveIdx + 1, 0, ...archivedLines);
 
   return { content: kept.join("\n"), changed };
+}
+
+// ─── @everyday tag reset ────────────────────────────────────────────────────
+
+function isBeforeToday(dateStr: string): boolean {
+  const m = dateStr.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return d < today;
+}
+
+function resetEverydayTasks(content: string): { content: string; changed: boolean } {
+  const lines = content.split("\n");
+  let changed = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*✔\s+/.test(line) && /@everyday/.test(line)) {
+      const doneM = line.match(/@done\(([^)]+)\)/);
+      if (!doneM || isBeforeToday(doneM[1])) {
+        lines[i] = line
+          .replace(/^(\s*)✔(\s+)/, "$1☐$2")
+          .replace(/\s*@done\([^)]*\)/g, "")
+          .trimEnd();
+        changed = true;
+      }
+    }
+  }
+  return { content: lines.join("\n"), changed };
+}
+
+function resetEverydayTasksInFile(filePath: string): string | null {
+  if (!existsSync(filePath)) return null;
+  const current = readFileSync(filePath, "utf-8");
+  const result = resetEverydayTasks(current);
+  if (!result.changed) return current;
+  writeFileSync(filePath, result.content, "utf-8");
+  invalidateFileCache(filePath);
+  syncRemindersFromContent(result.content, filePath);
+  broadcastUpdatedContent(result.content, filePath);
+  return result.content;
+}
+
+function scheduleMidnightReset() {
+  if (everydayResetTimer) clearTimeout(everydayResetTimer);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 1, 0); // 00:00:01 next day
+  const msUntilMidnight = tomorrow.getTime() - now.getTime();
+  everydayResetTimer = setTimeout(() => {
+    if (currentFilePath) resetEverydayTasksInFile(currentFilePath);
+    scheduleMidnightReset();
+  }, msUntilMidnight);
 }
 
 function cleanupExpiredCompletedTasksInFile(filePath: string): string | null {
@@ -976,6 +1032,8 @@ app.whenReady().then(() => {
     if (!currentFilePath) return;
     cleanupExpiredCompletedTasksInFile(currentFilePath);
   }, COMPLETED_TASK_CLEANUP_INTERVAL_MS);
+
+  scheduleMidnightReset();
 });
 
 app.on("before-quit", () => {
@@ -987,6 +1045,10 @@ app.on("will-quit", () => {
   if (completedTaskCleanupTimer) {
     clearInterval(completedTaskCleanupTimer);
     completedTaskCleanupTimer = null;
+  }
+  if (everydayResetTimer) {
+    clearTimeout(everydayResetTimer);
+    everydayResetTimer = null;
   }
 });
 
@@ -1012,6 +1074,7 @@ ipcMain.handle("file:open", async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
 
   currentFilePath = result.filePaths[0];
+  resetEverydayTasksInFile(currentFilePath);
   const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileCached(currentFilePath);
   // Also sync to sticker
   const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
@@ -1100,6 +1163,7 @@ ipcMain.handle("explorer:openFileByPath", (_event, filePath: string) => {
   const stat = statSync(filePath);
   if (!stat.isFile()) return null;
 
+  resetEverydayTasksInFile(filePath);
   const content = readFileSync(filePath, "utf-8");
   currentFilePath = filePath;
   pushRecentFile(currentFilePath);
@@ -1121,6 +1185,7 @@ ipcMain.handle("file:getDefault", () => {
   const defaultPath = join(app.getPath("documents"), "tasks.todo");
   if (existsSync(defaultPath)) {
     currentFilePath = defaultPath;
+    resetEverydayTasksInFile(defaultPath);
     const content = cleanupExpiredCompletedTasksInFile(defaultPath) ?? readFileSync(defaultPath, "utf-8");
     syncRemindersFromContent(content, currentFilePath);
     return { path: defaultPath, content };

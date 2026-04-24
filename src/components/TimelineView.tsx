@@ -351,6 +351,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
   const cfg = ZOOM_CONFIGS[zoom];
   const totalMin = (endMs - originMs) / 60000;
   const timelineWidth = Math.max(600, totalMin * cfg.pxPerMin);
+  const spanDays = (endMs - originMs) / (24 * 60 * 60 * 1000);
 
   const msToPx = useCallback((ms: number) => ((ms - originMs) / 60000) * cfg.pxPerMin, [originMs, cfg.pxPerMin]);
 
@@ -556,7 +557,11 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                 const isOngoing = seg.endSource === "ongoing";
                 const barW = Math.max(4, endX - startX);
                 const labelX = startX + barW / 2;
-                const timeLabel = `${fmtTime(new Date(seg.start))} - ${isOngoing ? "now" : fmtTime(new Date(seg.end))}`;
+                const fmtSegTime = (d: Date) =>
+                  spanDays > 2
+                    ? `${d.getMonth() + 1}/${d.getDate()}`
+                    : fmtTime(d);
+                const timeLabel = `${fmtSegTime(new Date(seg.start))} – ${isOngoing ? "now" : fmtSegTime(new Date(seg.end))}`;
 
                 return (
                   <div key={seg.task.line}>
