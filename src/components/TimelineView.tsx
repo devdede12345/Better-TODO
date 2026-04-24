@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { X, ZoomIn, ZoomOut, AlertTriangle, Activity } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Activity } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -279,20 +279,6 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
     return ticks;
   }, [originMs, endMs, cfg]);
 
-  // Overlap detection
-  const overlapLines = useMemo(() => {
-    const over = new Set<number>();
-    const sorted = [...scheduledSegments].sort((a, b) => a.start - b.start);
-    for (let i = 0; i < sorted.length; i++) {
-      for (let j = i + 1; j < sorted.length; j++) {
-        if (sorted[j].start >= sorted[i].end) break;
-        over.add(sorted[i].task.line);
-        over.add(sorted[j].task.line);
-      }
-    }
-    return over;
-  }, [scheduledSegments]);
-
   // Scroll to "now" initially
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -335,12 +321,6 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
             <h2 className="text-sm font-medium text-editor-text">Timeline Graph</h2>
             <span className="text-[11px] text-editor-muted ml-2">
               {scheduledSegments.length} segments
-              {overlapLines.size > 0 && (
-                <span className="ml-2 text-red-400 inline-flex items-center gap-1">
-                  <AlertTriangle size={11} />
-                  {overlapLines.size} conflict{overlapLines.size === 1 ? "" : "s"}
-                </span>
-              )}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -440,7 +420,6 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                     : seg.task.state === "cancelled"
                     ? "#f56565"
                     : "#63b3ed";
-                const isOverlap = overlapLines.has(seg.task.line);
                 const isOngoing = seg.endSource === "ongoing";
 
                 return (
@@ -470,7 +449,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       onClick={() => handleTaskClick(seg.task.line)}
                       onMouseEnter={() => setHoveredTask(seg.task)}
                       onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg ${isOverlap ? "ring-2 ring-red-500/80" : ""}`}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg"
                       style={{ left: startX, top: y, borderColor: color }}
                       title={seg.task.cleanText}
                     />
@@ -487,7 +466,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                           onClick={() => handleTaskClick(seg.task.line)}
                           onMouseEnter={() => setHoveredTask(seg.task)}
                           onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                          className={`absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg ${isOverlap ? "ring-2 ring-red-500/80" : ""}`}
+                          className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg"
                           style={{ left: endX, top: y, borderColor: color }}
                           title={seg.task.cleanText}
                         />
@@ -505,7 +484,6 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       style={{ left: (startX + endX) / 2, top: y - 18, transform: "translateX(-50%)" }}
                       title={seg.task.cleanText}
                     >
-                      {isOverlap && <AlertTriangle size={10} className="inline mr-1 text-red-400" />}
                       {seg.task.cleanText}
                     </div>
                   </div>

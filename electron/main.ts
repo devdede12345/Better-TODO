@@ -67,7 +67,7 @@ function pushRecentFile(filePath: string) {
 }
 
 const REMINDER_REPEAT_MS = 5 * 60 * 1000;
-const COMPLETED_TASK_TTL_MS = 2 * 60 * 60 * 1000;
+const COMPLETED_TASK_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1000;
 let completedTaskCleanupTimer: NodeJS.Timeout | null = null;
 
@@ -379,18 +379,55 @@ function extractTaskStatusTimestamp(line: string): number | null {
 function pruneExpiredCompletedTasks(content: string, nowMs = Date.now()): { content: string; changed: boolean } {
   const lines = content.split("\n");
   const kept: string[] = [];
+  const toArchive: string[] = [];
   let changed = false;
 
-  for (const line of lines) {
-    if (/^\s*[✔✘]\s+/.test(line)) {
+  // Locate an existing "Archive:" section so we do NOT re-archive what's already archived
+  let archiveIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^Archive:\s*$/.test(lines[i])) {
+      archiveIdx = i;
+      break;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Skip expiration check for lines already inside Archive: section
+    const insideArchive = archiveIdx !== -1 && i > archiveIdx;
+    if (!insideArchive && /^\s*[✔✘]\s+/.test(line)) {
       const statusTs = extractTaskStatusTimestamp(line);
       if (statusTs && nowMs - statusTs >= COMPLETED_TASK_TTL_MS) {
+        toArchive.push(line);
         changed = true;
         continue;
       }
     }
     kept.push(line);
   }
+
+  if (!changed) return { content, changed };
+
+  // Find (or create) Archive: section within `kept`
+  let keptArchiveIdx = -1;
+  for (let i = 0; i < kept.length; i++) {
+    if (/^Archive:\s*$/.test(kept[i])) {
+      keptArchiveIdx = i;
+      break;
+    }
+  }
+
+  if (keptArchiveIdx === -1) {
+    if (kept.length > 0 && kept[kept.length - 1].trim() !== "") {
+      kept.push("");
+    }
+    kept.push("Archive:");
+    keptArchiveIdx = kept.length - 1;
+  }
+
+  // Normalize indent to 2 spaces so archived rows sit neatly under the heading
+  const archivedLines = toArchive.map((l) => `  ${l.trimStart()}`);
+  kept.splice(keptArchiveIdx + 1, 0, ...archivedLines);
 
   return { content: kept.join("\n"), changed };
 }
