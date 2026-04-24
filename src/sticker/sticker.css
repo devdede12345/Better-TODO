@@ -708,3 +708,334 @@ html.theme-light body.sticker-widget-mode .widget-reminder-menu button:hover,
 body.theme-light.sticker-widget-mode .widget-reminder-menu button:hover {
   background: rgba(148, 163, 184, 0.22);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Widget v2  (wv2-*)  – new TickTick-style layout
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body.sticker-widget-mode .wv2-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #3e3e42;
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: var(--app-font-family, system-ui, sans-serif);
+  color: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+body.sticker-widget-mode .wv2-header {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+body.sticker-widget-mode .wv2-header-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+body.sticker-widget-mode .wv2-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+body.sticker-widget-mode .wv2-title-arrow {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+body.sticker-widget-mode .wv2-date-nav {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+body.sticker-widget-mode .wv2-nav-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+}
+
+body.sticker-widget-mode .wv2-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+body.sticker-widget-mode .wv2-date-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+}
+
+body.sticker-widget-mode .wv2-header-right {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+body.sticker-widget-mode .wv2-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.60);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+body.sticker-widget-mode .wv2-action-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+body.sticker-widget-mode .wv2-close-btn:hover {
+  background: rgba(239, 68, 68, 0.45);
+  color: #fff;
+}
+
+/* ── Input ──────────────────────────────────────────────────────────────── */
+
+body.sticker-widget-mode .wv2-input-wrap {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+body.sticker-widget-mode .wv2-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.90);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+body.sticker-widget-mode .wv2-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+body.sticker-widget-mode .wv2-input:focus {
+  border-color: rgba(147, 197, 253, 0.55);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* ── Task list ──────────────────────────────────────────────────────────── */
+
+body.sticker-widget-mode .wv2-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-app-region: no-drag;
+}
+
+body.sticker-widget-mode .wv2-list::-webkit-scrollbar {
+  width: 3px;
+}
+
+body.sticker-widget-mode .wv2-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.sticker-widget-mode .wv2-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+}
+
+body.sticker-widget-mode .wv2-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.30);
+  font-size: 12px;
+  padding: 36px 16px;
+}
+
+/* ── Task row ───────────────────────────────────────────────────────────── */
+
+body.sticker-widget-mode .wv2-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.10s;
+}
+
+body.sticker-widget-mode .wv2-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body.sticker-widget-mode .wv2-row.done,
+body.sticker-widget-mode .wv2-row.cancelled {
+  opacity: 0.62;
+}
+
+body.sticker-widget-mode .wv2-accent {
+  width: 3px;
+  flex-shrink: 0;
+}
+
+body.sticker-widget-mode .wv2-row-content {
+  flex: 1;
+  padding: 9px 10px 9px 8px;
+  min-width: 0;
+}
+
+body.sticker-widget-mode .wv2-row-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+body.sticker-widget-mode .wv2-checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 0;
+  background: transparent;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1;
+}
+
+body.sticker-widget-mode .wv2-text {
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+body.sticker-widget-mode .wv2-text.struck {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+body.sticker-widget-mode .wv2-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #4dd0e1;
+  white-space: nowrap;
+}
+
+body.sticker-widget-mode .wv2-date {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.36);
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+body.sticker-widget-mode .wv2-row-sub {
+  margin-top: 3px;
+  padding-left: 22px;
+}
+
+body.sticker-widget-mode .wv2-time {
+  font-size: 11px;
+  color: #4dd0e1;
+}
+
+/* ── Light-theme overrides ──────────────────────────────────────────────── */
+
+html.theme-light body.sticker-widget-mode .wv2-root,
+body.theme-light.sticker-widget-mode .wv2-root {
+  background: #f0f0f0;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.85);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-header,
+body.theme-light.sticker-widget-mode .wv2-header {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-title,
+html.theme-light body.sticker-widget-mode .wv2-date-label,
+body.theme-light.sticker-widget-mode .wv2-title,
+body.theme-light.sticker-widget-mode .wv2-date-label {
+  color: rgba(0, 0, 0, 0.80);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-action-btn,
+body.theme-light.sticker-widget-mode .wv2-action-btn {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-action-btn:hover,
+body.theme-light.sticker-widget-mode .wv2-action-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.90);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-input,
+body.theme-light.sticker-widget-mode .wv2-input {
+  background: rgba(255, 255, 255, 0.80);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: rgba(0, 0, 0, 0.85);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-input::placeholder,
+body.theme-light.sticker-widget-mode .wv2-input::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-text,
+body.theme-light.sticker-widget-mode .wv2-text {
+  color: rgba(0, 0, 0, 0.82);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-text.struck,
+body.theme-light.sticker-widget-mode .wv2-text.struck {
+  color: rgba(0, 0, 0, 0.40);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-date,
+body.theme-light.sticker-widget-mode .wv2-date {
+  color: rgba(0, 0, 0, 0.38);
+}
+
+html.theme-light body.sticker-widget-mode .wv2-row,
+body.theme-light.sticker-widget-mode .wv2-row {
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+}

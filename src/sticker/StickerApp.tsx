@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Lock, Unlock, X, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Lock, X, GripVertical, Plus, Trash2, Sun, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { normalizeFontFamily } from "../hooks/useEditorSettings";
 
 interface StickerTask {
@@ -23,6 +23,113 @@ interface ReminderPreview {
 }
 
 type StickerLine = { type: "task"; data: StickerTask } | { type: "project"; data: StickerProject };
+
+// ─── Widget task model ────────────────────────────────────────────────────
+
+interface WidgetTask {
+  lineIndex: number;
+  rawText: string;
+  cleanText: string;
+  state: "pending" | "done" | "cancelled";
+  indent: number;
+  dueAt: Date | null;
+  doneAt: Date | null;
+  startedAt: Date | null;
+  tags: string[];
+}
+
+// ─── Widget helpers ───────────────────────────────────────────────────────
+
+function parseWidgetDate(str: string): Date | null {
+  const m = str.trim().match(/^(\d{2,4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/);
+  if (!m) return null;
+  const yy = +m[1];
+  const year = yy < 100 ? (yy < 70 ? 2000 + yy : 1900 + yy) : yy;
+  return new Date(year, +m[2] - 1, +m[3], +(m[4] ?? 0), +(m[5] ?? 0));
+}
+
+function extractHashTags(text: string): string[] {
+  return text.match(/#[\w\u4e00-\u9fa5]+/g) ?? [];
+}
+
+function cleanWidgetText(text: string): string {
+  return text
+    .replace(/@done\([^)]*\)/g, "")
+    .replace(/@cancelled\([^)]*\)/g, "")
+    .replace(/@start(?:ed)?\([^)]*\)/g, "")
+    .replace(/@lasted\([^)]*\)/g, "")
+    .replace(/@est\([^)]*\)/g, "")
+    .replace(/@due\([^)]*\)/g, "")
+    .replace(/@everyday/g, "")
+    .replace(/#[\w\u4e00-\u9fa5]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseWidgetTasks(content: string): WidgetTask[] {
+  const tasks: WidgetTask[] = [];
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    if (/^Archive:\s*$/.test(trimmed)) break;
+    const indent = raw.search(/\S/);
+    let state: "pending" | "done" | "cancelled" | null = null;
+    let rest = "";
+    if (trimmed.startsWith("☐")) { state = "pending"; rest = trimmed.slice(1).trim(); }
+    else if (trimmed.startsWith("✔")) { state = "done"; rest = trimmed.slice(1).trim(); }
+    else if (trimmed.startsWith("✘")) { state = "cancelled"; rest = trimmed.slice(1).trim(); }
+    else continue;
+    const dueM = rest.match(/@due\(([^)]+)\)/);
+    const doneM = rest.match(/@done\(([^)]+)\)/);
+    const startM = rest.match(/@start(?:ed)?\(([^)]+)\)/);
+    tasks.push({
+      lineIndex: i,
+      rawText: rest,
+      cleanText: cleanWidgetText(rest),
+      state,
+      indent,
+      dueAt: dueM ? parseWidgetDate(dueM[1]) : null,
+      doneAt: doneM ? parseWidgetDate(doneM[1]) : null,
+      startedAt: startM ? parseWidgetDate(startM[1]) : null,
+      tags: extractHashTags(rest),
+    });
+  }
+  return tasks;
+}
+
+function getAccentColor(task: WidgetTask): string {
+  if (task.state === "done") return "#22c55e";
+  if (task.state === "cancelled") return "#6b7280";
+  if (!task.dueAt) return "#8b5cf6";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(task.dueAt); due.setHours(0, 0, 0, 0);
+  if (due < today) return "#ef4444";
+  if (due.getTime() === today.getTime()) return "#f97316";
+  return "#3b82f6";
+}
+
+function getDateLabel(task: WidgetTask): string {
+  const d = task.dueAt ?? task.doneAt;
+  if (!d) return "";
+  return `${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+function getTimeLabel(task: WidgetTask): string | null {
+  if (!task.dueAt) return null;
+  const h = task.dueAt.getHours();
+  const m = task.dueAt.getMinutes();
+  if (h === 0 && m === 0) return null;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+const WEEK_DAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+function formatNavDate(d: Date): string {
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${WEEK_DAYS[d.getDay()]}`;
+}
+
+// ─── Sticker content parsing (unchanged) ──────────────────────────────────
 
 function parseStickerContent(content: string): StickerLine[] {
   const lines: StickerLine[] = [];
@@ -60,14 +167,27 @@ export default function StickerApp() {
   const [isWidgetMode, setIsWidgetMode] = useState(false);
   const [nextReminder, setNextReminder] = useState<ReminderPreview | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
+  const [rawContent, setRawContent] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+  });
 
   // Apply parsed content
   const applyContent = useCallback((content: string, name?: string) => {
     if (name) setFileName(name);
+    setRawContent(content);
     const parsed = parseStickerContent(content);
     setLines(parsed);
     setPendingCount(parsed.filter((l) => l.type === "task" && l.data.state === "pending").length);
   }, []);
+
+  const widgetTasks = useMemo(() => parseWidgetTasks(rawContent), [rawContent]);
+
+  const handleRefresh = useCallback(() => {
+    window.electronAPI?.stickerRequestContent?.().then((result) => {
+      if (result) applyContent(result.content, result.fileName);
+    });
+  }, [applyContent]);
 
   // Self-load: request current content on startup
   useEffect(() => {
@@ -268,8 +388,101 @@ export default function StickerApp() {
     return `${y}/${mo}/${day} ${h}:${m}`;
   };
 
+  // ── Date navigation helpers ──────────────────────────────────────────────
+  const prevDay = () => setSelectedDate((d) => { const nd = new Date(d); nd.setDate(nd.getDate() - 1); return nd; });
+  const nextDay = () => setSelectedDate((d) => { const nd = new Date(d); nd.setDate(nd.getDate() + 1); return nd; });
+
+  // ── Widget mode ──────────────────────────────────────────────────────────
+  if (isWidgetMode) {
+    return (
+      <div className="wv2-root">
+        {/* Header */}
+        <div className="wv2-header">
+          <div className="wv2-header-left">
+            <Sun size={12} style={{ color: "#fbbf24", flexShrink: 0 }} />
+            <span className="wv2-title">Day Todo</span>
+            <span className="wv2-title-arrow">▾</span>
+          </div>
+          <div className="wv2-date-nav">
+            <button className="wv2-nav-btn" onClick={prevDay}>‹</button>
+            <span className="wv2-date-label">{formatNavDate(selectedDate)}</span>
+            <button className="wv2-nav-btn" onClick={nextDay}>›</button>
+          </div>
+          <div className="wv2-header-right">
+            <button className="wv2-action-btn" onClick={handleToggleLock} title={locked ? "Unpin" : "Pin"}>
+              <Lock size={11} style={{ color: locked ? "#fbbf24" : undefined }} />
+            </button>
+            <button className="wv2-action-btn" onClick={handleRefresh} title="Refresh">
+              <RotateCcw size={11} />
+            </button>
+            <button className="wv2-action-btn wv2-close-btn" onClick={handleClose} title="Close">
+              <X size={11} />
+            </button>
+          </div>
+        </div>
+
+        {/* Quick add input */}
+        <div className="wv2-input-wrap">
+          <input
+            className="wv2-input"
+            value={newTaskText}
+            onChange={(e) => setNewTaskText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleAddTask(); } }}
+            placeholder="在此添加内容，按回车创建事件"
+          />
+        </div>
+
+        {/* Task list */}
+        <div className="wv2-list">
+          {widgetTasks.length === 0 ? (
+            <div className="wv2-empty">暂无待办事项</div>
+          ) : widgetTasks.map((task) => {
+            const accent = getAccentColor(task);
+            const dateLabel = getDateLabel(task);
+            const timeLabel = getTimeLabel(task);
+            const isDone = task.state === "done";
+            const isCancelled = task.state === "cancelled";
+            return (
+              <div key={task.lineIndex} className={`wv2-row ${task.state}`}>
+                <div className="wv2-accent" style={{ backgroundColor: accent }} />
+                <div className="wv2-row-content">
+                  <div className="wv2-row-main">
+                    <button
+                      className="wv2-checkbox"
+                      style={{
+                        borderColor: accent,
+                        backgroundColor: isDone ? accent : "transparent",
+                        color: isDone ? "#fff" : accent,
+                      }}
+                      onClick={() => void handleToggleTask(task.lineIndex)}
+                    >
+                      {isDone ? "✓" : isCancelled ? "✗" : ""}
+                    </button>
+                    <span className={`wv2-text${isDone || isCancelled ? " struck" : ""}`}>
+                      {task.cleanText}
+                    </span>
+                    {task.tags.map((tag, ti) => (
+                      <span key={ti} className="wv2-tag">{tag}</span>
+                    ))}
+                    {dateLabel && <span className="wv2-date">{dateLabel}</span>}
+                  </div>
+                  {timeLabel && (
+                    <div className="wv2-row-sub">
+                      <span className="wv2-time">⏰ {timeLabel}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Sticker mode (unchanged) ─────────────────────────────────────────────
   return (
-    <div className={`sticker-root ${isWidgetMode ? "sticker-root-widget" : ""}`}>
+    <div className="sticker-root">
       {/* Header / drag handle */}
       <div className={`sticker-handle ${locked ? "sticker-handle-locked" : ""} flex items-center justify-between px-3 py-2 border-b sticker-border`}>
         <div className="flex items-center gap-1.5 min-w-0">
@@ -282,110 +495,43 @@ export default function StickerApp() {
               {pendingCount}
             </span>
           )}
-
         </div>
-
         <div className="flex items-center gap-1 sticker-handle-nodrag flex-shrink-0">
           <button
             onClick={handleToggleLock}
             className="p-1 rounded sticker-icon-button transition-colors"
             title={locked ? "Unlock position" : "Lock position"}
           >
-            {locked ? (
-              <Lock size={12} className="text-yellow-400" />
-            ) : (
-              <Unlock size={12} className="sticker-icon-muted" />
-            )}
+            <Lock size={12} className={locked ? "text-yellow-400" : "sticker-icon-muted"} />
           </button>
           <button
             onClick={handleClose}
             className="p-1 rounded hover:bg-red-500/30 transition-colors"
-            title={isWidgetMode ? "Close widget" : "Close sticker"}
+            title="Close sticker"
           >
             <X size={12} className="sticker-icon-muted" />
           </button>
         </div>
       </div>
 
-      {isWidgetMode && (
-        <div className={`widget-reminder-strip ${nextReminder?.isOverdue ? "overdue" : ""}`}>
-          <span className="widget-reminder-label">NEXT</span>
-          <span
-            className="widget-reminder-summary"
-            title={nextReminder ? cleanText(nextReminder.taskText) : "No active reminders"}
-          >
-            {nextReminder ? cleanText(nextReminder.taskText) : "No active reminders"}
-          </span>
-          <span className="widget-reminder-time">
-            {nextReminder ? (nextReminder.isOverdue ? "OVERDUE" : formatCountdown(nextReminder.remainingSeconds)) : "--:--"}
-          </span>
-        </div>
-      )}
-
       {/* Task list */}
       <div className="sticker-body flex-1 overflow-y-auto px-3 py-2">
         {lines.length === 0 && (
-          <div className="text-[11px] sticker-empty text-center py-8">
-            No tasks loaded
-          </div>
+          <div className="text-[11px] sticker-empty text-center py-8">No tasks loaded</div>
         )}
         {lines.map((line, i) => {
           if (line.type === "project") {
-            return (
-              <div key={i} className="sticker-project">
-                {line.data.name}
-              </div>
-            );
+            return <div key={i} className="sticker-project">{line.data.name}</div>;
           }
           const task = line.data;
           const cleaned = cleanText(task.text);
-
-          if (isWidgetMode) {
-            return (
-              <div
-                key={i}
-                className={`widget-task-button ${task.state}`}
-                title={cleaned}
-              >
-                <button
-                  type="button"
-                  className="widget-task-marker-button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleToggleTask(task.lineIndex);
-                  }}
-                  title="Toggle task"
-                >
-                  <span className="widget-task-marker" style={{ color: stateColor(task.state) }}>
-                    {markerChar(task.state)}
-                  </span>
-                </button>
-                <span className="widget-task-label">{cleaned}</span>
-                <button
-                  type="button"
-                  className="widget-task-delete-button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleDeleteTask(task.lineIndex);
-                  }}
-                  title="Delete task"
-                >
-                  <Trash2 size={11} />
-                </button>
-              </div>
-            );
-          }
-
           return (
             <div
               key={i}
               className={`sticker-task ${task.state}`}
               style={{ paddingLeft: Math.min(task.indent, 6) * 8 }}
             >
-              <span
-                className="sticker-marker"
-                style={{ color: stateColor(task.state) }}
-              >
+              <span className="sticker-marker" style={{ color: stateColor(task.state) }}>
                 {markerChar(task.state)}
               </span>
               <span className="sticker-task-text">{cleaned}</span>
@@ -393,35 +539,6 @@ export default function StickerApp() {
           );
         })}
       </div>
-
-      {isWidgetMode && (
-        <div className="widget-quick-entry sticker-handle-nodrag">
-          <input
-            type="text"
-            value={newTaskText}
-            onChange={(event) => setNewTaskText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void handleAddTask();
-              }
-            }}
-            className="widget-quick-entry-input"
-            placeholder="Add a todo..."
-            aria-label="Add a todo"
-          />
-          <button
-            type="button"
-            className="widget-quick-entry-button"
-            onClick={() => {
-              void handleAddTask();
-            }}
-            title="Add todo"
-          >
-            <Plus size={12} />
-          </button>
-        </div>
-      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t sticker-border text-[10px] sticker-footer">
