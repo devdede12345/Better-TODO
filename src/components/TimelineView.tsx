@@ -20,7 +20,7 @@ interface ScheduledSegment {
   task: TimelineTask;
   start: number;
   end: number;
-  endSource: "due" | "done";
+  endSource: "due" | "done" | "ongoing";
   lane: number;
 }
 
@@ -92,18 +92,24 @@ function buildTimelineTasks(doc: ParsedDocument | null): TimelineTask[] {
   return out;
 }
 
-function toSegment(t: TimelineTask): { start: number; end: number; endSource: "due" | "done" } | null {
+function toSegment(t: TimelineTask, now: number): { start: number; end: number; endSource: "due" | "done" | "ongoing" } | null {
   if (!t.startedAt) return null;
-  const endDate = t.dueAt ?? t.doneAt;
-  if (!endDate) return null;
-  const endSource: "due" | "done" = t.dueAt ? "due" : "done";
   const a = t.startedAt.getTime();
+  if (!Number.isFinite(a)) return null;
+
+  const endDate = t.dueAt ?? t.doneAt;
+  if (!endDate) {
+    // Only @start: ongoing open-ended segment that extends to 'now'
+    const b = Math.max(now, a + 60 * 60 * 1000); // at least 1h long for visibility
+    return { start: a, end: b, endSource: "ongoing" };
+  }
+  const endSource: "due" | "done" = t.dueAt ? "due" : "done";
   const b = endDate.getTime();
-  if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return null;
+  if (!Number.isFinite(b) || a === b) return null;
   return a < b ? { start: a, end: b, endSource } : { start: b, end: a, endSource };
 }
 
-function assignLanes(items: { task: TimelineTask; start: number; end: number; endSource: "due" | "done" }[]): ScheduledSegment[] {
+function assignLanes(items: { task: TimelineTask; start: number; end: number; endSource: "due" | "done" | "ongoing" }[]): ScheduledSegment[] {
   const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end);
   const laneEnds: number[] = [];
   const out: ScheduledSegment[] = [];
@@ -193,15 +199,46 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
   const tasks = useMemo(() => buildTimelineTasks(parsedDoc), [parsedDoc]);
   const now = useMemo(() => Date.now(), []);
 
+  // ── Task buckets for the list below the graph ──
+  const { ongoingTasks, futureTasks, archivedTasks } = useMemo(() => {
+    const ongoing: TimelineTask[] = [];
+    const future: TimelineTask[] = [];
+    const archived: TimelineTask[] = [];
+    for (const t of tasks) {
+      if (t.state === "done") {
+        archived.push(t);
+        continue;
+      }
+      if (t.state === "cancelled") continue;
+      if (!t.startedAt) continue;
+      const startMs = t.startedAt.getTime();
+      if (startMs > now) {
+        future.push(t);
+      } else {
+        // started and not yet done/cancelled → ongoing
+        ongoing.push(t);
+      }
+    }
+    // Sort: ongoing by start desc, future by start asc, archived by doneAt desc
+    ongoing.sort((a, b) => (b.startedAt!.getTime()) - (a.startedAt!.getTime()));
+    future.sort((a, b) => (a.startedAt!.getTime()) - (b.startedAt!.getTime()));
+    archived.sort((a, b) => {
+      const ad = a.doneAt?.getTime() ?? 0;
+      const bd = b.doneAt?.getTime() ?? 0;
+      return bd - ad;
+    });
+    return { ongoingTasks: ongoing, futureTasks: future, archivedTasks: archived };
+  }, [tasks, now]);
+
   const scheduledSegments = useMemo(() => {
     const raw = tasks
       .map((task) => {
-        const seg = toSegment(task);
+        const seg = toSegment(task, now);
         return seg ? { task, start: seg.start, end: seg.end, endSource: seg.endSource } : null;
       })
-      .filter((v): v is { task: TimelineTask; start: number; end: number; endSource: "due" | "done" } => v !== null);
+      .filter((v): v is { task: TimelineTask; start: number; end: number; endSource: "due" | "done" | "ongoing" } => v !== null);
     return assignLanes(raw);
-  }, [tasks]);
+  }, [tasks, now]);
 
   // Timeline span: [min start, max end]  (fallback: centered on now)
   const { originMs, endMs } = useMemo(() => {
@@ -347,7 +384,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
         </div>
 
         {/* Timeline body */}
-        <div className="flex-1 min-h-0">
+        <div className="shrink-0 min-h-0" style={{ height: "45%" }}>
           <div ref={scrollRef} className="h-full overflow-auto relative">
             <div style={{ width: timelineWidth, minHeight: canvasHeight, position: "relative" }}>
               <div
@@ -404,11 +441,14 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                     ? "#f56565"
                     : "#63b3ed";
                 const isOverlap = overlapLines.has(seg.task.line);
+                const isOngoing = seg.endSource === "ongoing";
 
                 return (
                   <div key={seg.task.line}>
                     <div className="absolute w-px bg-white/30" style={{ left: startX, top: Math.min(baseY, y), height: Math.abs(baseY - y) }} />
-                    <div className="absolute w-px bg-white/30" style={{ left: endX, top: Math.min(baseY, y), height: Math.abs(baseY - y) }} />
+                    {!isOngoing && (
+                      <div className="absolute w-px bg-white/30" style={{ left: endX, top: Math.min(baseY, y), height: Math.abs(baseY - y) }} />
+                    )}
 
                     <div
                       className="absolute"
@@ -416,7 +456,8 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                         left: startX,
                         top: y,
                         width: Math.max(2, endX - startX),
-                        borderTop: `2px solid ${color}`,
+                        borderTop: `2px ${isOngoing ? "dashed" : "solid"} ${color}`,
+                        opacity: isOngoing ? 0.75 : 1,
                       }}
                       onMouseEnter={() => setHoveredTask(seg.task)}
                       onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
@@ -439,21 +480,25 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                     >
                       {formatNodeTime(new Date(seg.start))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleTaskClick(seg.task.line)}
-                      onMouseEnter={() => setHoveredTask(seg.task)}
-                      onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg ${isOverlap ? "ring-2 ring-red-500/80" : ""}`}
-                      style={{ left: endX, top: y, borderColor: color }}
-                      title={seg.task.cleanText}
-                    />
-                    <div
-                      className="absolute px-1.5 py-0.5 text-[10px] rounded border border-editor-border bg-editor-bg/95 text-editor-subtext whitespace-nowrap"
-                      style={{ left: endX, top: y + 12, transform: "translateX(-50%)" }}
-                    >
-                      {formatNodeTime(new Date(seg.end))}
-                    </div>
+                    {!isOngoing && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleTaskClick(seg.task.line)}
+                          onMouseEnter={() => setHoveredTask(seg.task)}
+                          onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
+                          className={`absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg ${isOverlap ? "ring-2 ring-red-500/80" : ""}`}
+                          style={{ left: endX, top: y, borderColor: color }}
+                          title={seg.task.cleanText}
+                        />
+                        <div
+                          className="absolute px-1.5 py-0.5 text-[10px] rounded border border-editor-border bg-editor-bg/95 text-editor-subtext whitespace-nowrap"
+                          style={{ left: endX, top: y + 12, transform: "translateX(-50%)" }}
+                        >
+                          {formatNodeTime(new Date(seg.end))}
+                        </div>
+                      </>
+                    )}
 
                     <div
                       className="absolute px-1.5 py-0.5 text-[10px] rounded bg-editor-overlay/80 border border-editor-border text-editor-subtext max-w-[220px] truncate"
@@ -467,6 +512,30 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                 );
               })}
             </div>
+          </div>
+        </div>
+
+        {/* Task buckets */}
+        <div className="flex-1 min-h-0 border-t border-editor-border overflow-y-auto">
+          <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <TaskBucket
+              title="ongoing"
+              tasks={ongoingTasks}
+              emptyHint="No tasks in progress"
+              onPick={handleTaskClick}
+            />
+            <TaskBucket
+              title="future task"
+              tasks={futureTasks}
+              emptyHint="No scheduled future tasks"
+              onPick={handleTaskClick}
+            />
+            <TaskBucket
+              title="archived"
+              tasks={archivedTasks}
+              emptyHint="No archived tasks"
+              onPick={handleTaskClick}
+            />
           </div>
         </div>
 
@@ -509,5 +578,57 @@ function fmtRange(startMs: number, endMs: number): string {
 function formatNodeTime(d: Date): string {
   const hh = String(d.getHours()).padStart(2, "0");
   return `${hh}:00`;
+}
+
+function taskDotColor(t: TimelineTask): string {
+  if (t.state === "done") return "#48bb78";
+  if (t.state === "cancelled") return "#f56565";
+  return "#63b3ed";
+}
+
+function TaskBucket({
+  title,
+  tasks,
+  emptyHint,
+  onPick,
+}: {
+  title: string;
+  tasks: TimelineTask[];
+  emptyHint: string;
+  onPick: (line: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-editor-muted mb-3 select-none">
+        <span className="flex-1 border-t border-editor-border/60" />
+        <span>{title}</span>
+        <span className="text-editor-muted/70">·</span>
+        <span className="text-editor-muted/70">{tasks.length}</span>
+        <span className="flex-1 border-t border-editor-border/60" />
+      </div>
+      {tasks.length === 0 ? (
+        <div className="text-[11px] text-editor-muted/70 italic px-1">{emptyHint}</div>
+      ) : (
+        <ul className="space-y-1.5">
+          {tasks.map((t) => (
+            <li key={t.line}>
+              <button
+                type="button"
+                onClick={() => onPick(t.line)}
+                className="w-full flex items-center gap-2 text-left text-[12px] text-editor-text hover:bg-editor-border/40 rounded px-1.5 py-1 transition-colors"
+                title={t.cleanText}
+              >
+                <span
+                  className="shrink-0 w-2.5 h-2.5 rounded-full border-2 bg-editor-bg"
+                  style={{ borderColor: taskDotColor(t) }}
+                />
+                <span className="truncate">{t.cleanText}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
