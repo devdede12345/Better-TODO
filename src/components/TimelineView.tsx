@@ -453,39 +453,17 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       style={{ left: startX, top: y, borderColor: color }}
                       title={seg.task.cleanText}
                     />
-                    <div
-                      className="absolute px-1.5 py-0.5 text-[10px] rounded border border-editor-border bg-editor-bg/95 text-editor-subtext whitespace-nowrap"
-                      style={{ left: startX, top: y + 12, transform: "translateX(-50%)" }}
-                    >
-                      {formatNodeTime(new Date(seg.start))}
-                    </div>
                     {!isOngoing && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleTaskClick(seg.task.line)}
-                          onMouseEnter={() => setHoveredTask(seg.task)}
-                          onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg"
-                          style={{ left: endX, top: y, borderColor: color }}
-                          title={seg.task.cleanText}
-                        />
-                        <div
-                          className="absolute px-1.5 py-0.5 text-[10px] rounded border border-editor-border bg-editor-bg/95 text-editor-subtext whitespace-nowrap"
-                          style={{ left: endX, top: y + 12, transform: "translateX(-50%)" }}
-                        >
-                          {formatNodeTime(new Date(seg.end))}
-                        </div>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => handleTaskClick(seg.task.line)}
+                        onMouseEnter={() => setHoveredTask(seg.task)}
+                        onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 bg-editor-bg"
+                        style={{ left: endX, top: y, borderColor: color }}
+                        title={seg.task.cleanText}
+                      />
                     )}
-
-                    <div
-                      className="absolute px-1.5 py-0.5 text-[10px] rounded bg-editor-overlay/80 border border-editor-border text-editor-subtext max-w-[220px] truncate"
-                      style={{ left: (startX + endX) / 2, top: y - 18, transform: "translateX(-50%)" }}
-                      title={seg.task.cleanText}
-                    >
-                      {seg.task.cleanText}
-                    </div>
                   </div>
                 );
               })}
