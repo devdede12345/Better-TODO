@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { X, ZoomIn, ZoomOut, Activity } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -185,16 +185,23 @@ const ZOOM_ORDER: ZoomLevel[] = ["hour", "day", "week", "month"];
 export default function TimelineView({ parsedDoc, content, onClose, onFocusLine }: TimelineViewProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("day");
   const [hoveredTask, setHoveredTask] = useState<TimelineTask | null>(null);
+  const [focusedTask, setFocusedTask] = useState<TimelineTask | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on Escape
+  // Close on Escape (dismiss focus panel first, then timeline)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        if (focusedTask) {
+          setFocusedTask(null);
+        } else {
+          onClose();
+        }
+      }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  }, [onClose, focusedTask]);
 
   const tasks = useMemo(() => buildTimelineTasks(parsedDoc), [parsedDoc]);
   const now = useMemo(() => Date.now(), []);
@@ -289,7 +296,26 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
   const nowPx = msToPx(now);
 
+  // Find conflicts for a task (overlapping segments)
+  const findConflicts = useCallback(
+    (task: TimelineTask): TimelineTask[] => {
+      const seg = scheduledSegments.find((s) => s.task.line === task.line);
+      if (!seg) return [];
+      return scheduledSegments
+        .filter((s) => s.task.line !== task.line && s.start < seg.end && s.end > seg.start)
+        .map((s) => s.task);
+    },
+    [scheduledSegments]
+  );
+
   const handleTaskClick = (line: number) => {
+    const task = tasks.find((t) => t.line === line);
+    if (task) {
+      setFocusedTask(task);
+    }
+  };
+
+  const handleJumpToLine = (line: number) => {
     onFocusLine(line);
     onClose();
   };
@@ -471,8 +497,18 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
           </div>
         </div>
 
-        {/* Task buckets */}
+        {/* Task buckets + Focus panel */}
         <div className="flex-1 min-h-0 border-t border-editor-border overflow-y-auto">
+          {focusedTask && (
+            <FocusPanel
+              task={focusedTask}
+              segments={scheduledSegments}
+              conflicts={findConflicts(focusedTask)}
+              onClose={() => setFocusedTask(null)}
+              onJump={handleJumpToLine}
+              onPickTask={handleTaskClick}
+            />
+          )}
           <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-6">
             <TaskBucket
               title="ongoing"
@@ -540,6 +576,164 @@ function taskDotColor(t: TimelineTask): string {
   if (t.state === "done") return "#48bb78";
   if (t.state === "cancelled") return "#f56565";
   return "#63b3ed";
+}
+
+// ─── Duration formatter ─────────────────────────────────────────────────────
+
+function fmtDuration(startMs: number, endMs: number): string {
+  const diff = Math.abs(endMs - startMs);
+  const totalMin = Math.round(diff / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h < 24) return m > 0 ? `${h}h${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  if (rh > 0) return `${d}d ${rh}h`;
+  return `${d}d`;
+}
+
+// ─── Focus Panel ─────────────────────────────────────────────────────────────
+
+function FocusPanel({
+  task,
+  segments,
+  conflicts,
+  onClose,
+  onJump,
+  onPickTask,
+}: {
+  task: TimelineTask;
+  segments: ScheduledSegment[];
+  conflicts: TimelineTask[];
+  onClose: () => void;
+  onJump: (line: number) => void;
+  onPickTask: (line: number) => void;
+}) {
+  const seg = segments.find((s) => s.task.line === task.line);
+  const startDate = task.startedAt;
+  const endDate = task.dueAt ?? task.doneAt;
+  const color =
+    task.state === "done" ? "#48bb78" : task.state === "cancelled" ? "#f56565" : "#63b3ed";
+
+  return (
+    <div className="mx-4 my-3 rounded-lg border border-editor-border bg-editor-overlay/20 overflow-hidden">
+      {/* Focus header */}
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-editor-border/60 bg-editor-overlay/10">
+        <span
+          className="shrink-0 w-3 h-3 rounded-full border-2 bg-editor-bg"
+          style={{ borderColor: color }}
+        />
+        <span className="text-[13px] font-medium text-editor-text truncate flex-1">
+          {task.cleanText}
+        </span>
+        <button
+          type="button"
+          onClick={() => onJump(task.line)}
+          className="flex items-center gap-1 text-[10px] text-editor-accent hover:text-editor-accent/80 transition-colors"
+          title="Jump to task in editor"
+        >
+          <ExternalLink size={11} />
+          <span>Jump</span>
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded hover:bg-editor-border/60 transition-colors"
+          title="Close focus panel"
+        >
+          <X size={12} className="text-editor-subtext" />
+        </button>
+      </div>
+
+      {/* Focus body */}
+      <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-4 text-[11px]">
+        {/* Time range */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-editor-muted uppercase tracking-wider text-[9px] font-semibold">
+            <ArrowRight size={10} />
+            <span>Time Range</span>
+          </div>
+          {startDate ? (
+            <div className="text-editor-text">
+              {fmtDate(startDate)}
+              {endDate ? (
+                <span className="text-editor-subtext"> → {fmtDate(endDate)}</span>
+              ) : (
+                <span className="text-editor-subtext italic"> → ongoing</span>
+              )}
+            </div>
+          ) : (
+            <div className="text-editor-muted italic">No start time</div>
+          )}
+        </div>
+
+        {/* Duration */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-editor-muted uppercase tracking-wider text-[9px] font-semibold">
+            <Clock size={10} />
+            <span>Duration</span>
+          </div>
+          {seg ? (
+            <div className="text-editor-text font-mono text-[12px]">
+              {fmtDuration(seg.start, seg.end)}
+              {seg.endSource === "ongoing" && (
+                <span className="text-editor-yellow ml-1 font-sans text-[10px]">(ongoing)</span>
+              )}
+            </div>
+          ) : (
+            <div className="text-editor-muted italic">—</div>
+          )}
+        </div>
+
+        {/* Conflicts */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-editor-muted uppercase tracking-wider text-[9px] font-semibold">
+            <AlertTriangle size={10} />
+            <span>Conflicts ({conflicts.length})</span>
+          </div>
+          {conflicts.length === 0 ? (
+            <div className="text-editor-muted/70 italic">No conflicts</div>
+          ) : (
+            <ul className="space-y-0.5">
+              {conflicts.map((c) => (
+                <li key={c.line}>
+                  <button
+                    type="button"
+                    onClick={() => onPickTask(c.line)}
+                    className="text-editor-text hover:text-editor-accent truncate transition-colors text-left"
+                    title={c.cleanText}
+                  >
+                    <span
+                      className="inline-block w-2 h-2 rounded-full border mr-1.5"
+                      style={{ borderColor: taskDotColor(c) }}
+                    />
+                    {c.cleanText}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* State badge */}
+      <div className="px-4 pb-2.5 flex items-center gap-2 text-[10px]">
+        <span
+          className="px-2 py-0.5 rounded-full text-[9px] font-medium uppercase tracking-wider"
+          style={{
+            backgroundColor: color + "20",
+            color: color,
+          }}
+        >
+          {task.state === "done" ? "completed" : task.state === "cancelled" ? "cancelled" : "active"}
+        </span>
+        {task.doneAt && (
+          <span className="text-editor-muted">completed {fmtDate(task.doneAt)}</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function TaskBucket({
