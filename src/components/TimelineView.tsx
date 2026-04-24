@@ -14,6 +14,7 @@ interface TimelineTask {
   startedAt: Date | null;
   dueAt: Date | null;
   doneAt: Date | null;
+  category: string;
 }
 
 interface ScheduledSegment {
@@ -64,9 +65,33 @@ function cleanTaskText(text: string): string {
     .trim();
 }
 
+/** Scan raw content to map each line index to its nearest preceding "Section:" header name.
+ *  This is more robust than walking the parser tree because it doesn't depend on indent rules. */
+function buildCategoryMapFromContent(content: string, fallback: string = "Other"): Map<number, string> {
+  const lines = content.split("\n");
+  const map = new Map<number, string>();
+  const RE_SECTION = /^(\s*)(.*?):\s*(@.*)?$/;
+  let currentCategory = fallback;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    // Detect section header: ends with ":", not a task line, not empty
+    if (trimmed.length > 1 && trimmed.endsWith(":") && !/^\s*[☐✔✘]\s+/.test(raw)) {
+      const m = raw.match(RE_SECTION);
+      if (m) {
+        currentCategory = m[2].trim() || fallback;
+      }
+    }
+    map.set(i, currentCategory);
+  }
+  return map;
+}
+
 /** Build timeline tasks and parse @start/@started + @due/@done tags. */
-function buildTimelineTasks(doc: ParsedDocument | null): TimelineTask[] {
+function buildTimelineTasks(doc: ParsedDocument | null, content: string): TimelineTask[] {
   if (!doc) return [];
+  const categoryMap = buildCategoryMapFromContent(content);
   const out: TimelineTask[] = [];
 
   for (const t of doc.tasks) {
@@ -87,6 +112,7 @@ function buildTimelineTasks(doc: ParsedDocument | null): TimelineTask[] {
       startedAt,
       dueAt,
       doneAt,
+      category: categoryMap.get(t.line) ?? "Other",
     });
   }
   return out;
@@ -229,8 +255,21 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
     return () => window.removeEventListener("keydown", h);
   }, [onClose, focusedTask]);
 
-  const tasks = useMemo(() => buildTimelineTasks(parsedDoc), [parsedDoc]);
+  const tasks = useMemo(() => buildTimelineTasks(parsedDoc, content), [parsedDoc, content]);
   const now = useMemo(() => Date.now(), []);
+
+  // Build category → color mapping (stable order by first occurrence)
+  const categoryColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    let idx = 0;
+    for (const t of tasks) {
+      if (!map.has(t.category)) {
+        map.set(t.category, SEGMENT_COLORS[idx % SEGMENT_COLORS.length]);
+        idx++;
+      }
+    }
+    return map;
+  }, [tasks]);
 
   // ── Task buckets for the list below the graph ──
   const { ongoingTasks, futureTasks, archivedTasks } = useMemo(() => {
@@ -498,7 +537,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                 const startX = msToPx(seg.start);
                 const endX = msToPx(seg.end);
                 const y = baseY + laneOffset(seg.lane);
-                const color = SEGMENT_COLORS[idx % SEGMENT_COLORS.length];
+                const color = categoryColorMap.get(seg.task.category) ?? SEGMENT_COLORS[idx % SEGMENT_COLORS.length];
                 const isOngoing = seg.endSource === "ongoing";
                 const barW = Math.max(4, endX - startX);
                 const labelX = startX + barW / 2;
@@ -590,6 +629,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
               task={focusedTask}
               segments={scheduledSegments}
               conflicts={findConflicts(focusedTask)}
+              categoryColorMap={categoryColorMap}
               onClose={() => setFocusedTask(null)}
               onJump={handleJumpToLine}
               onPickTask={handleTaskClick}
@@ -601,18 +641,21 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
               tasks={ongoingTasks}
               emptyHint="No tasks in progress"
               onPick={handleTaskClick}
+              categoryColorMap={categoryColorMap}
             />
             <TaskBucket
               title="future task"
               tasks={futureTasks}
               emptyHint="No scheduled future tasks"
               onPick={handleTaskClick}
+              categoryColorMap={categoryColorMap}
             />
             <TaskBucket
               title="archived"
               tasks={archivedTasks}
               emptyHint="No archived tasks"
               onPick={handleTaskClick}
+              categoryColorMap={categoryColorMap}
             />
           </div>
         </div>
@@ -640,6 +683,21 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
             </span>
           )}
         </div>
+
+        {/* Category color legend */}
+        {categoryColorMap.size > 0 && (
+          <div className="shrink-0 border-t border-editor-border/60 px-4 py-2 flex items-center gap-5 flex-wrap bg-editor-overlay/5">
+            {Array.from(categoryColorMap.entries()).map(([cat, clr]) => (
+              <div key={cat} className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 rounded-full border-2 shrink-0"
+                  style={{ borderColor: clr, backgroundColor: clr }}
+                />
+                <span className="text-[11px] text-editor-text">{cat}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -689,6 +747,7 @@ function FocusPanel({
   task,
   segments,
   conflicts,
+  categoryColorMap,
   onClose,
   onJump,
   onPickTask,
@@ -696,6 +755,7 @@ function FocusPanel({
   task: TimelineTask;
   segments: ScheduledSegment[];
   conflicts: TimelineTask[];
+  categoryColorMap: Map<string, string>;
   onClose: () => void;
   onJump: (line: number) => void;
   onPickTask: (line: number) => void;
@@ -703,8 +763,7 @@ function FocusPanel({
   const seg = segments.find((s) => s.task.line === task.line);
   const startDate = task.startedAt;
   const endDate = task.dueAt ?? task.doneAt;
-  const color =
-    task.state === "done" ? "#48bb78" : task.state === "cancelled" ? "#f56565" : "#63b3ed";
+  const color = categoryColorMap.get(task.category) ?? "#63b3ed";
 
   return (
     <div className="mx-4 my-3 rounded-lg border border-editor-border bg-editor-overlay/20 overflow-hidden">
@@ -796,7 +855,7 @@ function FocusPanel({
                   >
                     <span
                       className="inline-block w-2 h-2 rounded-full border mr-1.5"
-                      style={{ borderColor: taskDotColor(c) }}
+                      style={{ borderColor: categoryColorMap.get(c.category) ?? "#63b3ed" }}
                     />
                     {c.cleanText}
                   </button>
@@ -831,11 +890,13 @@ function TaskBucket({
   tasks,
   emptyHint,
   onPick,
+  categoryColorMap,
 }: {
   title: string;
   tasks: TimelineTask[];
   emptyHint: string;
   onPick: (line: number) => void;
+  categoryColorMap: Map<string, string>;
 }) {
   return (
     <div>
@@ -859,8 +920,8 @@ function TaskBucket({
                 title={t.cleanText}
               >
                 <span
-                  className="shrink-0 w-2.5 h-2.5 rounded-full border-2 bg-editor-bg"
-                  style={{ borderColor: taskDotColor(t) }}
+                  className="shrink-0 w-2.5 h-2.5 rounded-full border-2"
+                  style={{ borderColor: categoryColorMap.get(t.category) ?? "#63b3ed", backgroundColor: categoryColorMap.get(t.category) ?? "#63b3ed" }}
                 />
                 <span className="truncate">{t.cleanText}</span>
               </button>
