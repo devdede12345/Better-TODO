@@ -1,12 +1,770 @@
-"use strict";const o=require("electron"),y=require("path"),u=require("fs");let a=null,l=null,F=null,s=null,O=!1,U=!1,Q=!1;const m=process.platform==="darwin",R=m?"CommandOrControl+Shift+Space":"Ctrl+Space",N=y.join(o.app.getPath("userData"),"system-settings.json");function $(){try{if(u.existsSync(N))return JSON.parse(u.readFileSync(N,"utf-8"))}catch{}return{autoLaunch:!1,minimizeToTray:!1}}function P(t){u.writeFileSync(N,JSON.stringify(t,null,2),"utf-8")}const L=y.join(o.app.getPath("userData"),"recent-files.json"),ie=10;function Y(){try{if(u.existsSync(L))return JSON.parse(u.readFileSync(L,"utf-8")).filter(e=>u.existsSync(e.path))}catch{}return[]}function se(t){u.writeFileSync(L,JSON.stringify(t,null,2),"utf-8")}function V(t){const e=Y().filter(n=>n.path!==t);e.unshift({path:t,name:t.split(/[\\/]/).pop()||"Untitled",openedAt:Date.now()}),se(e.slice(0,ie))}const A=5*60*1e3,re=30*24*60*60*1e3,oe=60*1e3;let C=null,v=null;const j=new Map;function k(t){if(!u.existsSync(t))throw new Error(`File not found: ${t}`);const e=u.statSync(t),n=j.get(t);if(n&&n.mtimeMs===e.mtimeMs&&n.size===e.size)return n.content;const i=u.readFileSync(t,"utf-8");return j.set(t,{content:i,mtimeMs:e.mtimeMs,size:e.size}),i}function T(t){t&&j.delete(t)}const w=new Map;function J(t){if(!u.existsSync(t))return null;const e=n=>u.readdirSync(n,{withFileTypes:!0}).filter(r=>!r.name.startsWith(".")).map(r=>{const c=y.join(n,r.name);return r.isDirectory()?{name:r.name,path:c,isDirectory:!0,children:e(c)}:{name:r.name,path:c,isDirectory:!1}}).sort((r,c)=>r.isDirectory!==c.isDirectory?r.isDirectory?-1:1:r.name.localeCompare(c.name));return{rootPath:t,rootName:t.split(/[\\/]/).pop()||t,children:e(t)}}function ce(t){if((!a||a.isDestroyed())&&x(),!a||a.isDestroyed())return;const e=a;if(e.isMinimized()&&e.restore(),e.show(),e.focus(),e.webContents.isLoadingMainFrame()){e.webContents.once("did-finish-load",()=>{e.webContents.send("nativeMenu:action",t)});return}e.webContents.send("nativeMenu:action",t)}function _(t,e,n,i,r){if(e<1||e>12||n<1||n>31||i<0||i>23||r<0||r>59)return null;const c=new Date(t,e-1,n,i,r,0,0);return c.getFullYear()!==t||c.getMonth()!==e-1||c.getDate()!==n||c.getHours()!==i||c.getMinutes()!==r?null:c.getTime()}function ae(t){const e=t.match(/(?:^|\s)@(\d{4})(?=\s|$)/),n=e?parseInt(e[1],10):new Date().getFullYear(),i=t.match(/(?:^|\s)@(\d{4})[\/.](\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);if(i)return _(parseInt(i[1],10),parseInt(i[2],10),parseInt(i[3],10),parseInt(i[4],10),parseInt(i[5],10));const r=t.match(/(?:^|\s)@(\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);if(r)return _(n,parseInt(r[1],10),parseInt(r[2],10),parseInt(r[3],10),parseInt(r[4],10));const c=t.match(/(?:^|\s)@(\d{2})(\d{2})(\d{2})(\d{2})(?=\s|$)/);return c?_(n,parseInt(c[1],10),parseInt(c[2],10),parseInt(c[3],10),parseInt(c[4],10)):null}function K(t){return t.replace(/@est\([^)]*\)/g,"").replace(/(?:^|\s)@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g,"").replace(/(?:^|\s)@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g,"").replace(/(?:^|\s)@\d{8}(?=\s|$)/g,"").replace(/(?:^|\s)@\d{4}(?=\s|$)/g,"").replace(/\s+/g," ").trim()}function Z(t=new Date){const e=t.getFullYear(),n=String(t.getMonth()+1).padStart(2,"0"),i=String(t.getDate()).padStart(2,"0"),r=String(t.getHours()).padStart(2,"0"),c=String(t.getMinutes()).padStart(2,"0");return`${e}-${n}-${i} ${r}:${c}`}function le(t){const e=t.match(/^(\d{4})[-\/.](\d{2})[-\/.](\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?$/);return e?_(parseInt(e[1],10),parseInt(e[2],10),parseInt(e[3],10),parseInt(e[4],10),parseInt(e[5],10)):null}function ue(t){const e=t.match(/@(?:done|cancel(?:led)?)\(([^)]+)\)/i);return e?le(e[1].trim()):null}function de(t,e=Date.now()){const n=t.split(`
-`),i=[],r=[];let c=!1,d=-1;for(let f=0;f<n.length;f++)if(/^Archive:\s*$/.test(n[f])){d=f;break}for(let f=0;f<n.length;f++){const S=n[f];if(!(d!==-1&&f>d)&&/^\s*[✔✘]\s+/.test(S)&&!/@everyday/.test(S)){const b=ue(S);if(b&&e-b>=re){r.push(S),c=!0;continue}}i.push(S)}if(!c)return{content:t,changed:c};let p=-1;for(let f=0;f<i.length;f++)if(/^Archive:\s*$/.test(i[f])){p=f;break}p===-1&&(i.length>0&&i[i.length-1].trim()!==""&&i.push(""),i.push("Archive:"),p=i.length-1);const g=r.map(f=>`  ${f.trimStart()}`);return i.splice(p+1,0,...g),{content:i.join(`
-`),changed:c}}function fe(t){const e=t.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(!e)return!1;const n=new Date;return n.setHours(0,0,0,0),new Date(+e[1],+e[2]-1,+e[3])<n}function pe(t){const e=t.split(`
-`);let n=!1;for(let i=0;i<e.length;i++){const r=e[i];if(/^\s*✔\s+/.test(r)&&/@everyday/.test(r)){const c=r.match(/@done\(([^)]+)\)/);(!c||fe(c[1]))&&(e[i]=r.replace(/^(\s*)✔(\s+)/,"$1☐$2").replace(/\s*@done\([^)]*\)/g,"").trimEnd(),n=!0)}}return{content:e.join(`
-`),changed:n}}function E(t){if(!u.existsSync(t))return null;const e=u.readFileSync(t,"utf-8"),n=pe(e);return n.changed?(u.writeFileSync(t,n.content,"utf-8"),T(t),h(n.content,t),D(n.content,t),n.content):e}function X(){v&&clearTimeout(v);const t=new Date,e=new Date(t);e.setDate(e.getDate()+1),e.setHours(0,0,1,0);const n=e.getTime()-t.getTime();v=setTimeout(()=>{s&&E(s),X()},n)}function z(t){if(!u.existsSync(t))return null;const e=u.readFileSync(t,"utf-8"),n=de(e);return n.changed?(u.writeFileSync(t,n.content,"utf-8"),h(n.content,t),D(n.content,t),n.content):e}function he(t){const e=new Date(t);if(Number.isNaN(e.getTime()))return"--/-- --:--";const n=String(e.getMonth()+1).padStart(2,"0"),i=String(e.getDate()).padStart(2,"0"),r=String(e.getHours()).padStart(2,"0"),c=String(e.getMinutes()).padStart(2,"0");return`${n}/${i} ${r}:${c}`}function ge(t,e){const n=t.split(`
-`),i=[],r=[];for(let c=0;c<n.length;c++){const d=n[c],p=d.match(/^(\s*)([^☐✔✘].*?):\s*(?:@.*)?$/);if(p&&d.trim().endsWith(":")){const H=p[1].length;for(;i.length>0&&i[i.length-1].indent>=H;)i.pop();i.push({indent:H,name:p[2].trim()});continue}const g=d.match(/^(\s*)☐\s+(.+)$/);if(!g)continue;const f=g[1].length;for(;i.length>0&&i[i.length-1].indent>=f;)i.pop();const S=g[2].trim(),I=ae(S);if(!I)continue;const b=i.length>0?i[i.length-1].name:"Tasks",ne=`${e}:${c}:${S}`;r.push({id:ne,filePath:e,lineIndex:c,taskText:S,projectName:b,timer:null,dueAt:I})}return r}function B(t){t.timer&&(clearTimeout(t.timer),t.timer=null)}function D(t,e){a&&!a.isDestroyed()&&a.webContents.send("editor:taskAppended",t);const n=e.split(/[\\/]/).pop()||"Untitled";l&&!l.isDestroyed()&&l.webContents.send("sticker:update",t,n)}function G(t){var c,d;if(!u.existsSync(t.filePath))return;const e=u.readFileSync(t.filePath,"utf-8").split(`
-`);let n=-1;if(e[t.lineIndex]&&((d=(c=e[t.lineIndex].match(/^\s*☐\s+(.+)$/))==null?void 0:c[1])==null?void 0:d.trim())===t.taskText&&(n=t.lineIndex),n===-1&&(n=e.findIndex(p=>{const g=p.match(/^\s*☐\s+(.+)$/);return g?g[1].trim()===t.taskText:!1})),n===-1)return;let i=e[n].replace(/^(\s*)☐\s+/,"$1✔ ");/@done\(/.test(i)||(i+=` @done(${Z()})`),e[n]=i;const r=e.join(`
-`);u.writeFileSync(t.filePath,r,"utf-8"),h(r,t.filePath),D(r,t.filePath)}function W(t){const e=w.get(t);e&&(B(e),w.delete(t))}function M(t,e){const n=w.get(t);if(!n)return;n.dueAt=e,B(n);const i=Math.max(0,n.dueAt-Date.now());n.timer=setTimeout(()=>{Se(t)},i)}function q(){let t=null;for(const e of w.values())(!t||e.dueAt<t.dueAt)&&(t=e);return t}function me(){const t=q();if(!t)return null;const e=t.dueAt-Date.now(),n=Math.max(0,Math.ceil(e/1e3));return{id:t.id,projectName:t.projectName,taskText:K(t.taskText),remainingSeconds:n,dueAt:t.dueAt,isOverdue:e<=0}}function ye(t){let e=!1;const n=`提醒 · ${t.projectName}`,i=[K(t.taskText),`⏰截止时间到！（${he(t.dueAt)}）`].join(`
-`),r=()=>{e=!0,W(t.id),G(t)};if(!o.Notification.isSupported()){const d={type:"info",title:"任务提醒",message:n,detail:i,buttons:["已完成","稍后提醒"],defaultId:1,cancelId:1};(a?o.dialog.showMessageBoxSync(a,d):o.dialog.showMessageBoxSync(d))===0&&r(),e||M(t.id,Date.now()+A);return}const c=new o.Notification({title:n,body:i,actions:[{type:"button",text:"已完成"},{type:"button",text:"稍后提醒"}],closeButtonText:"关闭",silent:!1});c.on("action",(d,p)=>{p===0?r():p===1&&(e=!0,M(t.id,Date.now()+A))}),c.on("click",()=>{a&&!a.isDestroyed()&&(a.show(),a.focus())}),c.on("close",()=>{e||M(t.id,Date.now()+A)}),c.show()}function Se(t){const e=w.get(t);e&&ye(e)}function h(t,e){const n=ge(t,e),i=new Set(n.map(r=>r.id));for(const[r,c]of w.entries())i.has(r)||(B(c),w.delete(r));for(const r of n)w.has(r.id)||(w.set(r.id,r),M(r.id,r.dueAt))}function x(){a=new o.BrowserWindow({width:1280,height:720,minWidth:600,minHeight:400,frame:!1,titleBarStyle:m?"hiddenInset":"hidden",trafficLightPosition:m?{x:14,y:14}:void 0,titleBarOverlay:m?void 0:{color:"#1e1e2e",symbolColor:"#cdd6f4",height:36},backgroundColor:m?"#00000000":"#1e1e2e",transparent:m,vibrancy:m?"under-window":void 0,visualEffectState:m?"active":void 0,webPreferences:{preload:y.join(__dirname,"preload.js"),contextIsolation:!0,nodeIntegration:!1}}),process.env.VITE_DEV_SERVER_URL?a.loadURL(process.env.VITE_DEV_SERVER_URL):a.loadFile(y.join(__dirname,"../dist/index.html")),a.on("close",t=>{if(U&&!Q){t.preventDefault(),a==null||a.hide();return}}),a.on("closed",()=>{a=null,l&&!l.isDestroyed()&&l.close()})}function ee(){if(l&&!l.isDestroyed()){l.focus();return}const{width:t,height:e}=o.screen.getPrimaryDisplay().workAreaSize;l=new o.BrowserWindow({width:420,height:560,x:t-440,y:e-600,frame:!1,alwaysOnTop:!0,transparent:!0,resizable:!1,fullscreenable:!1,skipTaskbar:!0,hasShadow:!!m,backgroundColor:"#00000000",vibrancy:void 0,visualEffectState:void 0,webPreferences:{preload:y.join(__dirname,"preload.js"),contextIsolation:!0,nodeIntegration:!1}}),m&&l.setVisibleOnAllWorkspaces(!0,{visibleOnFullScreen:!0}),process.env.VITE_DEV_SERVER_URL?l.loadURL(process.env.VITE_DEV_SERVER_URL+"/sticker.html?widget=1"):l.loadFile(y.join(__dirname,"../dist/sticker.html"),{query:{widget:"1"}}),l.webContents.on("did-finish-load",()=>{if(s&&u.existsSync(s)){const n=k(s),i=s.split(/[\\/]/).pop()||"Untitled";l==null||l.webContents.send("sticker:update",n,i)}l==null||l.webContents.send("sticker:lockState",O)}),l.on("closed",()=>{l=null,a==null||a.webContents.send("widget:visibility",!1)}),a==null||a.webContents.send("widget:visibility",!0)}function te(){ce("edit:find")}function we(){const t=y.join(__dirname,"../build/icon.png");let e;u.existsSync(t)?e=o.nativeImage.createFromPath(t).resize({width:16,height:16}):e=o.nativeImage.createEmpty(),F=new o.Tray(e),F.setToolTip("Better TODO");const n=o.Menu.buildFromTemplate([{label:"Show Editor",click:()=>{(!a||a.isDestroyed())&&x(),a==null||a.show(),a==null||a.focus()}},{label:"Spotlight Search",accelerator:R,click:()=>te()},{type:"separator"},{label:"Quit",click:()=>o.app.quit()}]);F.setContextMenu(n),F.on("double-click",()=>{(!a||a.isDestroyed())&&x(),a==null||a.show(),a==null||a.focus()})}o.app.whenReady().then(()=>{U=$().minimizeToTray,x(),we(),o.globalShortcut.register(R,()=>{te()})||console.warn(`[shortcut] Failed to register global shortcut: ${R}`),C=setInterval(()=>{s&&z(s)},oe),X()});o.app.on("before-quit",()=>{Q=!0});o.app.on("will-quit",()=>{o.globalShortcut.unregisterAll(),C&&(clearInterval(C),C=null),v&&(clearTimeout(v),v=null)});o.app.on("window-all-closed",()=>{});o.app.on("activate",()=>{o.BrowserWindow.getAllWindows().length===0&&x()});o.ipcMain.handle("file:open",async()=>{const t=await o.dialog.showOpenDialog(a,{properties:["openFile"],filters:[{name:"Todo Files",extensions:["todo","txt","md"]},{name:"All Files",extensions:["*"]}]});if(t.canceled||t.filePaths.length===0)return null;s=t.filePaths[0],E(s);const e=z(s)??k(s),n=s.split(/[\\/]/).pop()||"Untitled";return l&&!l.isDestroyed()&&l.webContents.send("sticker:update",e,n),h(e,s),{path:s,content:e}});o.ipcMain.handle("file:save",(t,e)=>{if(!s){o.ipcMain.emit("file:saveAs",t,e);return}u.writeFileSync(s,e,"utf-8"),T(s);const n=s.split(/[\\/]/).pop()||"Untitled";return l&&!l.isDestroyed()&&l.webContents.send("sticker:update",e,n),h(e,s),s});o.ipcMain.handle("file:saveAs",async(t,e)=>{const n=await o.dialog.showSaveDialog(a,{defaultPath:s||"tasks.todo",filters:[{name:"Todo Files",extensions:["todo"]},{name:"All Files",extensions:["*"]}]});return n.canceled||!n.filePath?null:(s=n.filePath,V(s),u.writeFileSync(s,e,"utf-8"),T(s),h(e,s),s)});o.ipcMain.handle("file:new",async()=>{const t=await o.dialog.showSaveDialog(a,{defaultPath:y.join(o.app.getPath("documents"),"tasks.todo"),filters:[{name:"Todo Files",extensions:["todo"]},{name:"All Files",extensions:["*"]}]});if(t.canceled||!t.filePath)return null;s=t.filePath,V(s);const e="";return u.writeFileSync(s,e,"utf-8"),T(s),h(e,s),{path:s,content:e}});o.ipcMain.handle("explorer:openFolder",async()=>{const t=await o.dialog.showOpenDialog(a,{properties:["openDirectory"]});return t.canceled||t.filePaths.length===0?null:J(t.filePaths[0])});o.ipcMain.handle("explorer:readDir",(t,e)=>e?J(e):null);o.ipcMain.handle("explorer:openFileByPath",(t,e)=>{if(!e||!u.existsSync(e)||!u.statSync(e).isFile())return null;E(e);const i=u.readFileSync(e,"utf-8");if(s=e,V(s),h(i,s),l&&!l.isDestroyed()){const r=e.split(/[\\/]/).pop()||"Untitled";l.webContents.send("sticker:update",i,r)}return{path:e,content:i}});o.ipcMain.handle("file:getDefault",()=>{const t=y.join(o.app.getPath("documents"),"tasks.todo");if(u.existsSync(t)){s=t,E(t);const n=z(t)??u.readFileSync(t,"utf-8");return h(n,s),{path:t,content:n}}s=t;const e=`欢迎使用 Todo Studio:
+"use strict";
+const electron = require("electron");
+const path = require("path");
+const fs = require("fs");
+let mainWindow = null;
+let widgetWindow = null;
+let tray = null;
+let currentFilePath = null;
+let stickerLocked = false;
+let minimizeToTray = false;
+let forceQuit = false;
+const isMac = process.platform === "darwin";
+const quickEntryShortcut = isMac ? "CommandOrControl+Shift+Space" : "Ctrl+Space";
+const settingsPath = path.join(electron.app.getPath("userData"), "system-settings.json");
+function loadSystemSettings() {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      return JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    }
+  } catch {
+  }
+  return { autoLaunch: false, minimizeToTray: false };
+}
+function saveSystemSettings(s) {
+  fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2), "utf-8");
+}
+const recentFilesPath = path.join(electron.app.getPath("userData"), "recent-files.json");
+const MAX_RECENT_FILES = 10;
+function loadRecentFiles() {
+  try {
+    if (fs.existsSync(recentFilesPath)) {
+      const list = JSON.parse(fs.readFileSync(recentFilesPath, "utf-8"));
+      return list.filter((f) => fs.existsSync(f.path));
+    }
+  } catch {
+  }
+  return [];
+}
+function saveRecentFiles(list) {
+  fs.writeFileSync(recentFilesPath, JSON.stringify(list, null, 2), "utf-8");
+}
+function pushRecentFile(filePath) {
+  const list = loadRecentFiles().filter((f) => f.path !== filePath);
+  list.unshift({
+    path: filePath,
+    name: filePath.split(/[\\/]/).pop() || "Untitled",
+    openedAt: Date.now()
+  });
+  saveRecentFiles(list.slice(0, MAX_RECENT_FILES));
+}
+const REMINDER_REPEAT_MS = 5 * 60 * 1e3;
+const COMPLETED_TASK_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
+const COMPLETED_TASK_CLEANUP_INTERVAL_MS = 60 * 1e3;
+let completedTaskCleanupTimer = null;
+let everydayResetTimer = null;
+const fileContentCache = /* @__PURE__ */ new Map();
+function readFileCached(filePath) {
+  if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
+  const stats = fs.statSync(filePath);
+  const cached = fileContentCache.get(filePath);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    return cached.content;
+  }
+  const content = fs.readFileSync(filePath, "utf-8");
+  fileContentCache.set(filePath, { content, mtimeMs: stats.mtimeMs, size: stats.size });
+  return content;
+}
+function invalidateFileCache(filePath) {
+  if (filePath) fileContentCache.delete(filePath);
+}
+const activeReminders = /* @__PURE__ */ new Map();
+function buildFileTree(rootPath) {
+  if (!fs.existsSync(rootPath)) return null;
+  const walk = (dirPath) => {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true }).filter((entry) => !entry.name.startsWith(".")).map((entry) => {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        return {
+          name: entry.name,
+          path: fullPath,
+          isDirectory: true,
+          children: walk(fullPath)
+        };
+      }
+      return {
+        name: entry.name,
+        path: fullPath,
+        isDirectory: false
+      };
+    });
+    return entries.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  };
+  return {
+    rootPath,
+    rootName: rootPath.split(/[\\/]/).pop() || rootPath,
+    children: walk(rootPath)
+  };
+}
+function sendNativeMenuAction(action) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const target = mainWindow;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+  if (target.webContents.isLoadingMainFrame()) {
+    target.webContents.once("did-finish-load", () => {
+      target.webContents.send("nativeMenu:action", action);
+    });
+    return;
+  }
+  target.webContents.send("nativeMenu:action", action);
+}
+function toValidTimestamp(year, month, day, hour, minute) {
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (hour < 0 || hour > 23) return null;
+  if (minute < 0 || minute > 59) return null;
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day || date.getHours() !== hour || date.getMinutes() !== minute) {
+    return null;
+  }
+  return date.getTime();
+}
+function extractDueTimestamp(taskText) {
+  const explicitYear = taskText.match(/(?:^|\s)@(\d{4})(?=\s|$)/);
+  const fallbackYear = explicitYear ? parseInt(explicitYear[1], 10) : (/* @__PURE__ */ new Date()).getFullYear();
+  const fullDateMatch = taskText.match(/(?:^|\s)@(\d{4})[\/.](\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (fullDateMatch) {
+    return toValidTimestamp(
+      parseInt(fullDateMatch[1], 10),
+      parseInt(fullDateMatch[2], 10),
+      parseInt(fullDateMatch[3], 10),
+      parseInt(fullDateMatch[4], 10),
+      parseInt(fullDateMatch[5], 10)
+    );
+  }
+  const monthDayMatch = taskText.match(/(?:^|\s)@(\d{2})[\/.](\d{2})\s+(\d{2}):(\d{2})(?=\s|$)/);
+  if (monthDayMatch) {
+    return toValidTimestamp(
+      fallbackYear,
+      parseInt(monthDayMatch[1], 10),
+      parseInt(monthDayMatch[2], 10),
+      parseInt(monthDayMatch[3], 10),
+      parseInt(monthDayMatch[4], 10)
+    );
+  }
+  const compactMatch = taskText.match(/(?:^|\s)@(\d{2})(\d{2})(\d{2})(\d{2})(?=\s|$)/);
+  if (compactMatch) {
+    return toValidTimestamp(
+      fallbackYear,
+      parseInt(compactMatch[1], 10),
+      parseInt(compactMatch[2], 10),
+      parseInt(compactMatch[3], 10),
+      parseInt(compactMatch[4], 10)
+    );
+  }
+  return null;
+}
+function cleanTaskLabel(text) {
+  return text.replace(/@est\([^)]*\)/g, "").replace(/(?:^|\s)@\d{4}[\/.]\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{2}[\/.]\d{2}\s+\d{2}:\d{2}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{8}(?=\s|$)/g, "").replace(/(?:^|\s)@\d{4}(?=\s|$)/g, "").replace(/\s+/g, " ").trim();
+}
+function formatTaskStatusTimestamp(date = /* @__PURE__ */ new Date()) {
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${mo}-${day} ${h}:${m}`;
+}
+function parseTaskStatusTimestamp(raw) {
+  const full = raw.match(/^(\d{4})[-\/.](\d{2})[-\/.](\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!full) return null;
+  return toValidTimestamp(
+    parseInt(full[1], 10),
+    parseInt(full[2], 10),
+    parseInt(full[3], 10),
+    parseInt(full[4], 10),
+    parseInt(full[5], 10)
+  );
+}
+function extractTaskStatusTimestamp(line) {
+  const match = line.match(/@(?:done|cancel(?:led)?)\(([^)]+)\)/i);
+  if (!match) return null;
+  return parseTaskStatusTimestamp(match[1].trim());
+}
+function pruneExpiredCompletedTasks(content, nowMs = Date.now()) {
+  const lines = content.split("\n");
+  const kept = [];
+  const toArchive = [];
+  let changed = false;
+  let archiveIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^Archive:\s*$/.test(lines[i])) {
+      archiveIdx = i;
+      break;
+    }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const insideArchive = archiveIdx !== -1 && i > archiveIdx;
+    if (!insideArchive && /^\s*[✔✘]\s+/.test(line) && !/@everyday/.test(line)) {
+      const statusTs = extractTaskStatusTimestamp(line);
+      if (statusTs && nowMs - statusTs >= COMPLETED_TASK_TTL_MS) {
+        toArchive.push(line);
+        changed = true;
+        continue;
+      }
+    }
+    kept.push(line);
+  }
+  if (!changed) return { content, changed };
+  let keptArchiveIdx = -1;
+  for (let i = 0; i < kept.length; i++) {
+    if (/^Archive:\s*$/.test(kept[i])) {
+      keptArchiveIdx = i;
+      break;
+    }
+  }
+  if (keptArchiveIdx === -1) {
+    if (kept.length > 0 && kept[kept.length - 1].trim() !== "") {
+      kept.push("");
+    }
+    kept.push("Archive:");
+    keptArchiveIdx = kept.length - 1;
+  }
+  const archivedLines = toArchive.map((l) => `  ${l.trimStart()}`);
+  kept.splice(keptArchiveIdx + 1, 0, ...archivedLines);
+  return { content: kept.join("\n"), changed };
+}
+function isBeforeToday(dateStr) {
+  const m = dateStr.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return false;
+  const today = /* @__PURE__ */ new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return d < today;
+}
+function resetEverydayTasks(content) {
+  const lines = content.split("\n");
+  let changed = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*✔\s+/.test(line) && /@everyday/.test(line)) {
+      const doneM = line.match(/@done\(([^)]+)\)/);
+      if (!doneM || isBeforeToday(doneM[1])) {
+        lines[i] = line.replace(/^(\s*)✔(\s+)/, "$1☐$2").replace(/\s*@done\([^)]*\)/g, "").trimEnd();
+        changed = true;
+      }
+    }
+  }
+  return { content: lines.join("\n"), changed };
+}
+function resetEverydayTasksInFile(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  const current = fs.readFileSync(filePath, "utf-8");
+  const result = resetEverydayTasks(current);
+  if (!result.changed) return current;
+  fs.writeFileSync(filePath, result.content, "utf-8");
+  invalidateFileCache(filePath);
+  syncRemindersFromContent(result.content, filePath);
+  broadcastUpdatedContent(result.content, filePath);
+  return result.content;
+}
+function scheduleMidnightReset() {
+  if (everydayResetTimer) clearTimeout(everydayResetTimer);
+  const now = /* @__PURE__ */ new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 1, 0);
+  const msUntilMidnight = tomorrow.getTime() - now.getTime();
+  everydayResetTimer = setTimeout(() => {
+    if (currentFilePath) resetEverydayTasksInFile(currentFilePath);
+    scheduleMidnightReset();
+  }, msUntilMidnight);
+}
+function cleanupExpiredCompletedTasksInFile(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  const current = fs.readFileSync(filePath, "utf-8");
+  const pruned = pruneExpiredCompletedTasks(current);
+  if (!pruned.changed) return current;
+  fs.writeFileSync(filePath, pruned.content, "utf-8");
+  syncRemindersFromContent(pruned.content, filePath);
+  broadcastUpdatedContent(pruned.content, filePath);
+  return pruned.content;
+}
+function formatReminderDueAt(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "--/-- --:--";
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${mo}/${day} ${h}:${m}`;
+}
+function extractReminderTasks(content, filePath) {
+  const lines = content.split("\n");
+  const projectStack = [];
+  const reminders = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const projectMatch = raw.match(/^(\s*)([^☐✔✘].*?):\s*(?:@.*)?$/);
+    if (projectMatch && raw.trim().endsWith(":")) {
+      const indent = projectMatch[1].length;
+      while (projectStack.length > 0 && projectStack[projectStack.length - 1].indent >= indent) {
+        projectStack.pop();
+      }
+      projectStack.push({ indent, name: projectMatch[2].trim() });
+      continue;
+    }
+    const pendingMatch = raw.match(/^(\s*)☐\s+(.+)$/);
+    if (!pendingMatch) continue;
+    const taskIndent = pendingMatch[1].length;
+    while (projectStack.length > 0 && projectStack[projectStack.length - 1].indent >= taskIndent) {
+      projectStack.pop();
+    }
+    const taskText = pendingMatch[2].trim();
+    const dueAt = extractDueTimestamp(taskText);
+    if (!dueAt) continue;
+    const projectName = projectStack.length > 0 ? projectStack[projectStack.length - 1].name : "Tasks";
+    const id = `${filePath}:${i}:${taskText}`;
+    reminders.push({
+      id,
+      filePath,
+      lineIndex: i,
+      taskText,
+      projectName,
+      timer: null,
+      dueAt
+    });
+  }
+  return reminders;
+}
+function clearReminderTimer(reminder) {
+  if (reminder.timer) {
+    clearTimeout(reminder.timer);
+    reminder.timer = null;
+  }
+}
+function broadcastUpdatedContent(content, filePath) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("editor:taskAppended", content);
+  }
+  const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
+  }
+}
+function markReminderTaskDone(reminder) {
+  var _a, _b;
+  if (!fs.existsSync(reminder.filePath)) return;
+  const lines = fs.readFileSync(reminder.filePath, "utf-8").split("\n");
+  let targetIndex = -1;
+  if (lines[reminder.lineIndex]) {
+    const current = (_b = (_a = lines[reminder.lineIndex].match(/^\s*☐\s+(.+)$/)) == null ? void 0 : _a[1]) == null ? void 0 : _b.trim();
+    if (current === reminder.taskText) {
+      targetIndex = reminder.lineIndex;
+    }
+  }
+  if (targetIndex === -1) {
+    targetIndex = lines.findIndex((line) => {
+      const pending = line.match(/^\s*☐\s+(.+)$/);
+      return pending ? pending[1].trim() === reminder.taskText : false;
+    });
+  }
+  if (targetIndex === -1) return;
+  let updated = lines[targetIndex].replace(/^(\s*)☐\s+/, "$1✔ ");
+  if (!/@done\(/.test(updated)) {
+    updated += ` @done(${formatTaskStatusTimestamp()})`;
+  }
+  lines[targetIndex] = updated;
+  const content = lines.join("\n");
+  fs.writeFileSync(reminder.filePath, content, "utf-8");
+  syncRemindersFromContent(content, reminder.filePath);
+  broadcastUpdatedContent(content, reminder.filePath);
+}
+function removeReminder(reminderId) {
+  const reminder = activeReminders.get(reminderId);
+  if (!reminder) return;
+  clearReminderTimer(reminder);
+  activeReminders.delete(reminderId);
+}
+function scheduleReminder(reminderId, dueAt) {
+  const reminder = activeReminders.get(reminderId);
+  if (!reminder) return;
+  reminder.dueAt = dueAt;
+  clearReminderTimer(reminder);
+  const delayMs = Math.max(0, reminder.dueAt - Date.now());
+  reminder.timer = setTimeout(() => {
+    fireReminder(reminderId);
+  }, delayMs);
+}
+function getNextReminderTask() {
+  let next = null;
+  for (const reminder of activeReminders.values()) {
+    if (!next || reminder.dueAt < next.dueAt) {
+      next = reminder;
+    }
+  }
+  return next;
+}
+function getNextReminderPreview() {
+  const next = getNextReminderTask();
+  if (!next) return null;
+  const deltaMs = next.dueAt - Date.now();
+  const remainingSeconds = Math.max(0, Math.ceil(deltaMs / 1e3));
+  return {
+    id: next.id,
+    projectName: next.projectName,
+    taskText: cleanTaskLabel(next.taskText),
+    remainingSeconds,
+    dueAt: next.dueAt,
+    isOverdue: deltaMs <= 0
+  };
+}
+function showReminderNotification(reminder) {
+  let handled = false;
+  const reminderTitle = `提醒 · ${reminder.projectName}`;
+  const reminderBody = [
+    cleanTaskLabel(reminder.taskText),
+    `⏰截止时间到！（${formatReminderDueAt(reminder.dueAt)}）`
+  ].join("\n");
+  const onComplete = () => {
+    handled = true;
+    removeReminder(reminder.id);
+    markReminderTaskDone(reminder);
+  };
+  if (!electron.Notification.isSupported()) {
+    const fallbackOptions = {
+      type: "info",
+      title: "任务提醒",
+      message: reminderTitle,
+      detail: reminderBody,
+      buttons: ["已完成", "稍后提醒"],
+      defaultId: 1,
+      cancelId: 1
+    };
+    const result = mainWindow ? electron.dialog.showMessageBoxSync(mainWindow, fallbackOptions) : electron.dialog.showMessageBoxSync(fallbackOptions);
+    if (result === 0) onComplete();
+    if (!handled) scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    return;
+  }
+  const notification = new electron.Notification({
+    title: reminderTitle,
+    body: reminderBody,
+    actions: [
+      { type: "button", text: "已完成" },
+      { type: "button", text: "稍后提醒" }
+    ],
+    closeButtonText: "关闭",
+    silent: false
+  });
+  notification.on("action", (_event, index) => {
+    if (index === 0) onComplete();
+    else if (index === 1) {
+      handled = true;
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    }
+  });
+  notification.on("click", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+  notification.on("close", () => {
+    if (!handled) {
+      scheduleReminder(reminder.id, Date.now() + REMINDER_REPEAT_MS);
+    }
+  });
+  notification.show();
+}
+function fireReminder(reminderId) {
+  const reminder = activeReminders.get(reminderId);
+  if (!reminder) return;
+  showReminderNotification(reminder);
+}
+function syncRemindersFromContent(content, filePath) {
+  const parsed = extractReminderTasks(content, filePath);
+  const nextIds = new Set(parsed.map((task) => task.id));
+  for (const [id, reminder] of activeReminders.entries()) {
+    if (!nextIds.has(id)) {
+      clearReminderTimer(reminder);
+      activeReminders.delete(id);
+    }
+  }
+  for (const task of parsed) {
+    if (activeReminders.has(task.id)) continue;
+    activeReminders.set(task.id, task);
+    scheduleReminder(task.id, task.dueAt);
+  }
+}
+function createWindow() {
+  mainWindow = new electron.BrowserWindow({
+    width: 1280,
+    height: 720,
+    minWidth: 600,
+    minHeight: 400,
+    frame: false,
+    titleBarStyle: isMac ? "hiddenInset" : "hidden",
+    trafficLightPosition: isMac ? { x: 14, y: 14 } : void 0,
+    titleBarOverlay: isMac ? void 0 : {
+      color: "#1e1e2e",
+      symbolColor: "#cdd6f4",
+      height: 36
+    },
+    backgroundColor: isMac ? "#00000000" : "#1e1e2e",
+    transparent: isMac,
+    vibrancy: isMac ? "under-window" : void 0,
+    visualEffectState: isMac ? "active" : void 0,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  }
+  mainWindow.on("close", (e) => {
+    if (minimizeToTray && !forceQuit) {
+      e.preventDefault();
+      mainWindow == null ? void 0 : mainWindow.hide();
+      return;
+    }
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.close();
+    }
+  });
+}
+function createWidgetWindow() {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.focus();
+    return;
+  }
+  const { width: screenW, height: screenH } = electron.screen.getPrimaryDisplay().workAreaSize;
+  widgetWindow = new electron.BrowserWindow({
+    width: 420,
+    height: 560,
+    x: screenW - 440,
+    y: screenH - 600,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: isMac ? true : false,
+    backgroundColor: "#00000000",
+    vibrancy: void 0,
+    visualEffectState: void 0,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  if (isMac) {
+    widgetWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWindow.loadURL(process.env.VITE_DEV_SERVER_URL + "/sticker.html?widget=1");
+  } else {
+    widgetWindow.loadFile(path.join(__dirname, "../dist/sticker.html"), {
+      query: { widget: "1" }
+    });
+  }
+  widgetWindow.webContents.on("did-finish-load", () => {
+    if (currentFilePath && fs.existsSync(currentFilePath)) {
+      const content = readFileCached(currentFilePath);
+      const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+      widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:update", content, fileName);
+    }
+    widgetWindow == null ? void 0 : widgetWindow.webContents.send("sticker:lockState", stickerLocked);
+  });
+  widgetWindow.on("closed", () => {
+    widgetWindow = null;
+    mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", false);
+  });
+  mainWindow == null ? void 0 : mainWindow.webContents.send("widget:visibility", true);
+}
+function toggleQuickEntry() {
+  sendNativeMenuAction("edit:find");
+}
+function createTray() {
+  const iconPath = path.join(__dirname, "../build/icon.png");
+  let trayIcon;
+  if (fs.existsSync(iconPath)) {
+    trayIcon = electron.nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  } else {
+    trayIcon = electron.nativeImage.createEmpty();
+  }
+  tray = new electron.Tray(trayIcon);
+  tray.setToolTip("Better TODO");
+  const contextMenu = electron.Menu.buildFromTemplate([
+    {
+      label: "Show Editor",
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          createWindow();
+        }
+        mainWindow == null ? void 0 : mainWindow.show();
+        mainWindow == null ? void 0 : mainWindow.focus();
+      }
+    },
+    { label: "Spotlight Search", accelerator: quickEntryShortcut, click: () => toggleQuickEntry() },
+    { type: "separator" },
+    { label: "Quit", click: () => electron.app.quit() }
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.on("double-click", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+    }
+    mainWindow == null ? void 0 : mainWindow.show();
+    mainWindow == null ? void 0 : mainWindow.focus();
+  });
+}
+electron.app.whenReady().then(() => {
+  const sysSettings = loadSystemSettings();
+  minimizeToTray = sysSettings.minimizeToTray;
+  createWindow();
+  createTray();
+  const registered = electron.globalShortcut.register(quickEntryShortcut, () => {
+    toggleQuickEntry();
+  });
+  if (!registered) {
+    console.warn(`[shortcut] Failed to register global shortcut: ${quickEntryShortcut}`);
+  }
+  completedTaskCleanupTimer = setInterval(() => {
+    if (!currentFilePath) return;
+    cleanupExpiredCompletedTasksInFile(currentFilePath);
+  }, COMPLETED_TASK_CLEANUP_INTERVAL_MS);
+  scheduleMidnightReset();
+});
+electron.app.on("before-quit", () => {
+  forceQuit = true;
+});
+electron.app.on("will-quit", () => {
+  electron.globalShortcut.unregisterAll();
+  if (completedTaskCleanupTimer) {
+    clearInterval(completedTaskCleanupTimer);
+    completedTaskCleanupTimer = null;
+  }
+  if (everydayResetTimer) {
+    clearTimeout(everydayResetTimer);
+    everydayResetTimer = null;
+  }
+});
+electron.app.on("window-all-closed", () => {
+});
+electron.app.on("activate", () => {
+  if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+electron.ipcMain.handle("file:open", async () => {
+  const result = await electron.dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile"],
+    filters: [
+      { name: "Todo Files", extensions: ["todo", "txt", "md"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  currentFilePath = result.filePaths[0];
+  resetEverydayTasksInFile(currentFilePath);
+  const content = cleanupExpiredCompletedTasksInFile(currentFilePath) ?? readFileCached(currentFilePath);
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
+  }
+  syncRemindersFromContent(content, currentFilePath);
+  return { path: currentFilePath, content };
+});
+electron.ipcMain.handle("file:save", (_event, content) => {
+  if (!currentFilePath) {
+    electron.ipcMain.emit("file:saveAs", _event, content);
+    return;
+  }
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
+  const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fn);
+  }
+  syncRemindersFromContent(content, currentFilePath);
+  return currentFilePath;
+});
+electron.ipcMain.handle("file:saveAs", async (_event, content) => {
+  const result = await electron.dialog.showSaveDialog(mainWindow, {
+    defaultPath: currentFilePath || "tasks.todo",
+    filters: [
+      { name: "Todo Files", extensions: ["todo"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return null;
+  currentFilePath = result.filePath;
+  pushRecentFile(currentFilePath);
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
+  syncRemindersFromContent(content, currentFilePath);
+  return currentFilePath;
+});
+electron.ipcMain.handle("file:new", async () => {
+  const result = await electron.dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(electron.app.getPath("documents"), "tasks.todo"),
+    filters: [
+      { name: "Todo Files", extensions: ["todo"] },
+      { name: "All Files", extensions: ["*"] }
+    ]
+  });
+  if (result.canceled || !result.filePath) return null;
+  currentFilePath = result.filePath;
+  pushRecentFile(currentFilePath);
+  const defaultContent = ``;
+  fs.writeFileSync(currentFilePath, defaultContent, "utf-8");
+  invalidateFileCache(currentFilePath);
+  syncRemindersFromContent(defaultContent, currentFilePath);
+  return { path: currentFilePath, content: defaultContent };
+});
+electron.ipcMain.handle("explorer:openFolder", async () => {
+  const result = await electron.dialog.showOpenDialog(mainWindow, {
+    properties: ["openDirectory"]
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return buildFileTree(result.filePaths[0]);
+});
+electron.ipcMain.handle("explorer:readDir", (_event, rootPath) => {
+  if (!rootPath) return null;
+  return buildFileTree(rootPath);
+});
+electron.ipcMain.handle("explorer:openFileByPath", (_event, filePath) => {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) return null;
+  resetEverydayTasksInFile(filePath);
+  const content = fs.readFileSync(filePath, "utf-8");
+  currentFilePath = filePath;
+  pushRecentFile(currentFilePath);
+  syncRemindersFromContent(content, currentFilePath);
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    const fileName = filePath.split(/[\\/]/).pop() || "Untitled";
+    widgetWindow.webContents.send("sticker:update", content, fileName);
+  }
+  return { path: filePath, content };
+});
+electron.ipcMain.handle("file:getDefault", () => {
+  const defaultPath = path.join(electron.app.getPath("documents"), "tasks.todo");
+  if (fs.existsSync(defaultPath)) {
+    currentFilePath = defaultPath;
+    resetEverydayTasksInFile(defaultPath);
+    const content = cleanupExpiredCompletedTasksInFile(defaultPath) ?? fs.readFileSync(defaultPath, "utf-8");
+    syncRemindersFromContent(content, currentFilePath);
+    return { path: defaultPath, content };
+  }
+  currentFilePath = defaultPath;
+  const defaultContent = `欢迎使用 Todo Studio:
   ☐ 这是一个待办事项，使用 ☐ 标记 @started
   ✔ 这是已完成的任务，使用 ✔ 标记 @done(2025-04-16)
   ✘ 这是已取消的任务，使用 ✘ 标记 @cancelled(2025-04-16)
@@ -50,25 +808,221 @@
 
 Archive:
   ✔ 归档的任务会出现在这里 @done(2025-04-16)
-`;return u.writeFileSync(t,e,"utf-8"),h(e,s),{path:t,content:e}});o.ipcMain.handle("file:getCurrentPath",()=>s);o.ipcMain.handle("reminder:getNext",()=>me());o.ipcMain.handle("reminder:snoozeNext",(t,e)=>{const n=q();return!n||!Number.isFinite(e)||e<=0?!1:(M(n.id,Date.now()+e),!0)});o.ipcMain.handle("reminder:completeNext",()=>{const t=q();return t?(W(t.id),G(t),!0):!1});o.ipcMain.handle("sticker:requestContent",()=>{if(s&&u.existsSync(s)){const t=k(s),e=s.split(/[\\/]/).pop()||"Untitled";return{content:t,fileName:e}}return null});o.ipcMain.handle("sticker:toggle",()=>l&&!l.isDestroyed()?(l.close(),l=null,!1):(ee(),!0));o.ipcMain.handle("sticker:isVisible",()=>l!==null&&!l.isDestroyed());o.ipcMain.handle("widget:toggle",()=>l&&!l.isDestroyed()?(l.close(),l=null,!1):(ee(),!0));o.ipcMain.handle("widget:isVisible",()=>l!==null&&!l.isDestroyed());o.ipcMain.handle("sticker:setLocked",(t,e)=>(O=e,l&&!l.isDestroyed()&&(l.setIgnoreMouseEvents(!1),l.webContents.send("sticker:lockState",e)),e));o.ipcMain.handle("sticker:getLocked",()=>O);o.ipcMain.handle("sticker:toggleTask",(t,e)=>{if(!s||!u.existsSync(s)||!Number.isInteger(e)||e<0)return!1;const n=k(s).split(`
-`);if(e>=n.length)return!1;const i=n[e],r=Z();if(i.includes("☐")){let d=i.replace("☐","✔");d.includes("@done")||(d+=` @done(${r})`),n[e]=d}else if(i.includes("✔"))n[e]=i.replace("✔","☐").replace(/ ?@done(\([^)]*\))?/g,"");else if(i.includes("✘"))n[e]=i.replace("✘","☐").replace(/ ?@cancel(?:led)?(\([^)]*\))?/g,"");else return!1;const c=n.join(`
-`);return u.writeFileSync(s,c,"utf-8"),T(s),h(c,s),D(c,s),!0});o.ipcMain.handle("sticker:deleteTask",(t,e)=>{var c;if(!s||!u.existsSync(s)||!Number.isInteger(e)||e<0)return!1;const n=k(s).split(`
-`);if(e>=n.length)return!1;const i=((c=n[e])==null?void 0:c.trimStart())||"";if(!i.startsWith("☐")&&!i.startsWith("✔")&&!i.startsWith("✘"))return!1;n.splice(e,1);const r=n.join(`
-`);return u.writeFileSync(s,r,"utf-8"),T(s),h(r,s),D(r,s),!0});o.ipcMain.handle("sticker:addTask",(t,e)=>{if(!s||!u.existsSync(s))return!1;const n=e.trim();if(!n)return!1;const i=`  ☐ ${n}`;let r=k(s);const c=r.indexOf(`
-Archive:`);if(c!==-1){const d=r.slice(0,c).trimEnd(),p=r.slice(c);r=d?`${d}
-${i}${p}`:`${i}${p}`}else{const d=r.trimEnd();r=d?`${d}
-${i}
-`:`${i}
-`}return u.writeFileSync(s,r,"utf-8"),T(s),h(r,s),D(r,s),!0});o.ipcMain.handle("sticker:back",()=>{a&&!a.isDestroyed()&&(a.show(),a.restore(),a.focus()),l&&!l.isDestroyed()&&(l.close(),l=null)});o.ipcMain.on("sticker:syncContent",(t,e,n)=>{l&&!l.isDestroyed()&&l.webContents.send("sticker:update",e,n)});o.ipcMain.on("reminder:syncDraft",(t,e)=>{s&&h(e,s)});o.ipcMain.handle("quickentry:submit",(t,e)=>{if(!e.trim())return;const n=e.split(`
-`).filter(i=>i.trim()).map(i=>`  ☐ ${i.trim()}`).join(`
-`);if(s&&u.existsSync(s)){let i=k(s);const r=i.indexOf(`
-Quickadd:`);if(r!==-1){const d=r+10,g=i.slice(d).search(/\n\S[^\n]*:\s*(\([^)]*\))?\s*$/m),f=g!==-1?d+g:i.length;i=i.slice(0,f)+`
-`+n+i.slice(f)}else{const d=i.indexOf(`
-Archive:`);d!==-1?i=i.slice(0,d)+`
-
-Quickadd:
-`+n+i.slice(d):i=i.trimEnd()+`
-
-Quickadd:
-`+n+`
-`}u.writeFileSync(s,i,"utf-8"),T(s),h(i,s),a&&!a.isDestroyed()&&a.webContents.send("editor:taskAppended",i);const c=s.split(/[\\/]/).pop()||"Untitled";l&&!l.isDestroyed()&&l.webContents.send("sticker:update",i,c)}});o.ipcMain.handle("quickentry:hide",()=>{});o.ipcMain.handle("system:getSettings",()=>{const t=$();return{autoLaunch:o.app.getLoginItemSettings().openAtLogin,minimizeToTray:t.minimizeToTray}});o.ipcMain.handle("system:setAutoLaunch",(t,e)=>{o.app.setLoginItemSettings({openAtLogin:e});const n=$();return n.autoLaunch=e,P(n),e});o.ipcMain.handle("system:setMinimizeToTray",(t,e)=>{U=e;const n=$();return n.minimizeToTray=e,P(n),e});o.ipcMain.handle("system:setTitleBarOverlay",(t,e,n)=>{if(!(m||!a||a.isDestroyed()))try{a.setTitleBarOverlay({color:e,symbolColor:n,height:36})}catch{}});o.ipcMain.handle("recent:getFiles",()=>Y());
+`;
+  fs.writeFileSync(defaultPath, defaultContent, "utf-8");
+  syncRemindersFromContent(defaultContent, currentFilePath);
+  return { path: defaultPath, content: defaultContent };
+});
+electron.ipcMain.handle("file:getCurrentPath", () => currentFilePath);
+electron.ipcMain.handle("reminder:getNext", () => getNextReminderPreview());
+electron.ipcMain.handle("reminder:snoozeNext", (_event, delayMs) => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  if (!Number.isFinite(delayMs) || delayMs <= 0) return false;
+  scheduleReminder(next.id, Date.now() + delayMs);
+  return true;
+});
+electron.ipcMain.handle("reminder:completeNext", () => {
+  const next = getNextReminderTask();
+  if (!next) return false;
+  removeReminder(next.id);
+  markReminderTaskDone(next);
+  return true;
+});
+electron.ipcMain.handle("sticker:requestContent", () => {
+  if (currentFilePath && fs.existsSync(currentFilePath)) {
+    const content = readFileCached(currentFilePath);
+    const fileName = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    return { content, fileName };
+  }
+  return null;
+});
+electron.ipcMain.handle("sticker:toggle", () => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+    return false;
+  }
+  createWidgetWindow();
+  return true;
+});
+electron.ipcMain.handle("sticker:isVisible", () => {
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
+});
+electron.ipcMain.handle("widget:toggle", () => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+    return false;
+  }
+  createWidgetWindow();
+  return true;
+});
+electron.ipcMain.handle("widget:isVisible", () => {
+  return widgetWindow !== null && !widgetWindow.isDestroyed();
+});
+electron.ipcMain.handle("sticker:setLocked", (_event, locked) => {
+  stickerLocked = locked;
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.setIgnoreMouseEvents(false);
+    widgetWindow.webContents.send("sticker:lockState", locked);
+  }
+  return locked;
+});
+electron.ipcMain.handle("sticker:getLocked", () => stickerLocked);
+electron.ipcMain.handle("sticker:toggleTask", (_event, lineIndex) => {
+  if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+  const lines = readFileCached(currentFilePath).split("\n");
+  if (lineIndex >= lines.length) return false;
+  const line = lines[lineIndex];
+  const now = formatTaskStatusTimestamp();
+  if (line.includes("☐")) {
+    let next = line.replace("☐", "✔");
+    if (!next.includes("@done")) {
+      next += ` @done(${now})`;
+    }
+    lines[lineIndex] = next;
+  } else if (line.includes("✔")) {
+    lines[lineIndex] = line.replace("✔", "☐").replace(/ ?@done(\([^)]*\))?/g, "");
+  } else if (line.includes("✘")) {
+    lines[lineIndex] = line.replace("✘", "☐").replace(/ ?@cancel(?:led)?(\([^)]*\))?/g, "");
+  } else {
+    return false;
+  }
+  const content = lines.join("\n");
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
+electron.ipcMain.handle("sticker:deleteTask", (_event, lineIndex) => {
+  var _a;
+  if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
+  if (!Number.isInteger(lineIndex) || lineIndex < 0) return false;
+  const lines = readFileCached(currentFilePath).split("\n");
+  if (lineIndex >= lines.length) return false;
+  const target = ((_a = lines[lineIndex]) == null ? void 0 : _a.trimStart()) || "";
+  if (!target.startsWith("☐") && !target.startsWith("✔") && !target.startsWith("✘")) {
+    return false;
+  }
+  lines.splice(lineIndex, 1);
+  const content = lines.join("\n");
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
+electron.ipcMain.handle("sticker:addTask", (_event, text) => {
+  if (!currentFilePath || !fs.existsSync(currentFilePath)) return false;
+  const taskText = text.trim();
+  if (!taskText) return false;
+  const taskLine = `  ☐ ${taskText}`;
+  let content = readFileCached(currentFilePath);
+  const archiveIdx = content.indexOf("\nArchive:");
+  if (archiveIdx !== -1) {
+    const before = content.slice(0, archiveIdx).trimEnd();
+    const after = content.slice(archiveIdx);
+    content = before ? `${before}
+${taskLine}${after}` : `${taskLine}${after}`;
+  } else {
+    const trimmed = content.trimEnd();
+    content = trimmed ? `${trimmed}
+${taskLine}
+` : `${taskLine}
+`;
+  }
+  fs.writeFileSync(currentFilePath, content, "utf-8");
+  invalidateFileCache(currentFilePath);
+  syncRemindersFromContent(content, currentFilePath);
+  broadcastUpdatedContent(content, currentFilePath);
+  return true;
+});
+electron.ipcMain.handle("sticker:back", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.restore();
+    mainWindow.focus();
+  }
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.close();
+    widgetWindow = null;
+  }
+});
+electron.ipcMain.on("sticker:syncContent", (_event, content, fileName) => {
+  if (widgetWindow && !widgetWindow.isDestroyed()) {
+    widgetWindow.webContents.send("sticker:update", content, fileName);
+  }
+});
+electron.ipcMain.on("reminder:syncDraft", (_event, content) => {
+  if (!currentFilePath) return;
+  syncRemindersFromContent(content, currentFilePath);
+});
+electron.ipcMain.handle("quickentry:submit", (_event, text) => {
+  if (!text.trim()) return;
+  const tasks = text.split("\n").filter((l) => l.trim()).map((l) => `  ☐ ${l.trim()}`).join("\n");
+  if (currentFilePath && fs.existsSync(currentFilePath)) {
+    let content = readFileCached(currentFilePath);
+    const quickaddIdx = content.indexOf("\nQuickadd:");
+    if (quickaddIdx !== -1) {
+      const afterHeader = quickaddIdx + "\nQuickadd:".length;
+      const rest = content.slice(afterHeader);
+      const nextSection = rest.search(/\n\S[^\n]*:\s*(\([^)]*\))?\s*$/m);
+      const insertAt = nextSection !== -1 ? afterHeader + nextSection : content.length;
+      content = content.slice(0, insertAt) + "\n" + tasks + content.slice(insertAt);
+    } else {
+      const archiveIdx = content.indexOf("\nArchive:");
+      if (archiveIdx !== -1) {
+        content = content.slice(0, archiveIdx) + "\n\nQuickadd:\n" + tasks + content.slice(archiveIdx);
+      } else {
+        content = content.trimEnd() + "\n\nQuickadd:\n" + tasks + "\n";
+      }
+    }
+    fs.writeFileSync(currentFilePath, content, "utf-8");
+    invalidateFileCache(currentFilePath);
+    syncRemindersFromContent(content, currentFilePath);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("editor:taskAppended", content);
+    }
+    const fn = currentFilePath.split(/[\\/]/).pop() || "Untitled";
+    if (widgetWindow && !widgetWindow.isDestroyed()) {
+      widgetWindow.webContents.send("sticker:update", content, fn);
+    }
+  }
+});
+electron.ipcMain.handle("quickentry:hide", () => {
+});
+electron.ipcMain.handle("system:getSettings", () => {
+  const s = loadSystemSettings();
+  const loginSettings = electron.app.getLoginItemSettings();
+  return {
+    autoLaunch: loginSettings.openAtLogin,
+    minimizeToTray: s.minimizeToTray
+  };
+});
+electron.ipcMain.handle("system:setAutoLaunch", (_event, enabled) => {
+  electron.app.setLoginItemSettings({ openAtLogin: enabled });
+  const s = loadSystemSettings();
+  s.autoLaunch = enabled;
+  saveSystemSettings(s);
+  return enabled;
+});
+electron.ipcMain.handle("system:setMinimizeToTray", (_event, enabled) => {
+  minimizeToTray = enabled;
+  const s = loadSystemSettings();
+  s.minimizeToTray = enabled;
+  saveSystemSettings(s);
+  return enabled;
+});
+electron.ipcMain.handle("system:setTitleBarOverlay", (_event, color, symbolColor) => {
+  if (isMac || !mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setTitleBarOverlay({ color, symbolColor, height: 36 });
+  } catch {
+  }
+});
+electron.ipcMain.handle("recent:getFiles", () => {
+  return loadRecentFiles();
+});
