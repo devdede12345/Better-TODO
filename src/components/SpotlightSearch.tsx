@@ -89,7 +89,7 @@ export default function SpotlightSearch({
   const listRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const isCommandMode = query.startsWith(">");
+  const isCommandMode = query.startsWith("/");
 
   // Build the list of available commands
   const commands = useMemo<CommandDef[]>(() => {
@@ -182,7 +182,7 @@ export default function SpotlightSearch({
   const lines = useMemo(() => content.split("\n"), [content]);
 
   const results = useMemo<SearchResult[]>(() => {
-    // Command mode: when query starts with '>'
+    // Command mode: when query starts with '/'
     if (isCommandMode) {
       const cq = query.slice(1).trim().toLowerCase();
       const filtered = cq
@@ -340,7 +340,7 @@ export default function SpotlightSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isCommandMode ? "Run a command..." : "Search tasks, projects, or text...  (type > for commands)"}
+            placeholder={isCommandMode ? "Run a command..." : "Search tasks, projects, or text...  (type / for commands)"}
             className="flex-1 bg-transparent text-[14px] text-editor-text placeholder-editor-muted/60 focus:outline-none"
             autoComplete="off"
             spellCheck={false}
@@ -366,7 +366,7 @@ export default function SpotlightSearch({
           {!query && (
             <div className="px-4 py-8 text-center text-[13px] text-editor-muted">
               Type to search tasks, projects, and text<br />
-              <span className="text-[11px] text-editor-muted/70">Press <kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">&gt;</kbd> to enter command mode</span>
+              <span className="text-[11px] text-editor-muted/70">Press <kbd className="px-1 py-0.5 rounded bg-editor-border/60 text-editor-subtext">/</kbd> to enter command mode</span>
             </div>
           )}
 
