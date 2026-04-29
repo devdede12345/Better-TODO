@@ -1,5 +1,7 @@
 import { Plugin, MarkdownView, Editor, Notice, TFile } from "obsidian";
+import { EditorView } from "@codemirror/view";
 import { todoDecorations } from "./editor/decorations";
+import { todoKeymap, todoClickToggle, todoActions } from "./editor/keymap";
 import {
   TimelineItemView,
   VIEW_TYPE_BTODO_TIMELINE,
@@ -22,7 +24,7 @@ import {
 export default class BetterTodoPlugin extends Plugin {
   async onload() {
     // ── CodeMirror extensions for live preview / source mode ─────────────
-    this.registerEditorExtension([todoDecorations]);
+    this.registerEditorExtension([todoDecorations, todoKeymap, todoClickToggle]);
 
     // ── Custom Timeline view ─────────────────────────────────────────────
     this.registerView(
@@ -42,22 +44,46 @@ export default class BetterTodoPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "toggle-task-done",
-      name: "Toggle task: done",
+      id: "new-task",
+      name: "New task (Markdown checkbox / .todo)",
+      hotkeys: [{ modifiers: ["Mod"], key: "Enter" }],
       editorCheckCallback: (checking, editor, view) => {
         if (!(view instanceof MarkdownView)) return false;
         if (checking) return true;
-        toggleTaskState(editor, "done");
+        runOnCM(editor, todoActions.newTask);
+      },
+    });
+
+    this.addCommand({
+      id: "toggle-task-done",
+      name: "Toggle task: pending → done → cancelled",
+      hotkeys: [{ modifiers: ["Mod"], key: "d" }],
+      editorCheckCallback: (checking, editor, view) => {
+        if (!(view instanceof MarkdownView)) return false;
+        if (checking) return true;
+        runOnCM(editor, todoActions.toggleDone);
       },
     });
 
     this.addCommand({
       id: "toggle-task-cancelled",
       name: "Toggle task: cancelled",
+      hotkeys: [{ modifiers: ["Alt"], key: "c" }],
       editorCheckCallback: (checking, editor, view) => {
         if (!(view instanceof MarkdownView)) return false;
         if (checking) return true;
-        toggleTaskState(editor, "cancelled");
+        runOnCM(editor, todoActions.toggleCancelled);
+      },
+    });
+
+    this.addCommand({
+      id: "toggle-task-started",
+      name: "Toggle task: @started timestamp",
+      hotkeys: [{ modifiers: ["Alt"], key: "s" }],
+      editorCheckCallback: (checking, editor, view) => {
+        if (!(view instanceof MarkdownView)) return false;
+        if (checking) return true;
+        runOnCM(editor, todoActions.toggleStarted);
       },
     });
 
@@ -100,74 +126,21 @@ export default class BetterTodoPlugin extends Plugin {
   }
 }
 
-// ─── Editor mutation helpers ──────────────────────────────────────────────
-
-type TargetState = "done" | "cancelled";
-
-const RE_MD_TASK = /^(\s*(?:[-*+]|\d+\.)\s+)\[([ xX/\-])\](\s+)/;
-const RE_TODO = /^(\s*)([☐✔✘])(\s+)/;
+// ─── Editor bridge ────────────────────────────────────────────────────────
 
 /**
- * Cycle a task line between pending and the requested state. Works on both
- * Markdown task lists and .todo glyph lines. Operates on the line under each
- * cursor / selection range so multi-cursor edits work.
+ * Bridge an Obsidian `Editor` to the underlying CodeMirror 6 `EditorView` so
+ * command-palette entries can reuse the exact same task-mutation logic as
+ * the keymap. Obsidian exposes the CM6 view as `editor.cm` at runtime; we
+ * fall back to a no-op if the cast is unavailable.
  */
-function toggleTaskState(editor: Editor, target: TargetState) {
-  const selections = editor.listSelections();
-  const seenLines = new Set<number>();
-  const edits: { line: number; from: number; to: number; replacement: string }[] = [];
-
-  for (const sel of selections) {
-    const a = Math.min(sel.anchor.line, sel.head.line);
-    const b = Math.max(sel.anchor.line, sel.head.line);
-    for (let ln = a; ln <= b; ln++) {
-      if (seenLines.has(ln)) continue;
-      seenLines.add(ln);
-      const text = editor.getLine(ln);
-
-      // Markdown task
-      const md = text.match(RE_MD_TASK);
-      if (md) {
-        const cur = md[2];
-        const desiredChar =
-          target === "done" ? (cur === "x" || cur === "X" ? " " : "x") :
-          /* cancelled */     (cur === "-" || cur === "/" ? " " : "-");
-        const newPrefix = `${md[1]}[${desiredChar}]${md[3]}`;
-        edits.push({
-          line: ln,
-          from: 0,
-          to: md[0].length,
-          replacement: newPrefix,
-        });
-        continue;
-      }
-
-      // .todo glyphs
-      const td = text.match(RE_TODO);
-      if (td) {
-        const cur = td[2];
-        const desiredGlyph =
-          target === "done" ? (cur === "✔" ? "☐" : "✔") :
-          /* cancelled */     (cur === "✘" ? "☐" : "✘");
-        edits.push({
-          line: ln,
-          from: 0,
-          to: td[0].length,
-          replacement: `${td[1]}${desiredGlyph}${td[3]}`,
-        });
-      }
-    }
+function runOnCM(editor: Editor, action: (view: EditorView) => boolean) {
+  const cm = (editor as unknown as { cm?: EditorView }).cm;
+  if (!cm) {
+    new Notice("Better TODO: this command requires the live preview / source editor");
+    return;
   }
-
-  // Apply edits bottom-up so prior offsets remain valid.
-  edits.sort((x, y) => y.line - x.line);
-  for (const e of edits) {
-    editor.replaceRange(
-      e.replacement,
-      { line: e.line, ch: e.from },
-      { line: e.line, ch: e.to }
-    );
-  }
+  action(cm);
 }
 
 /**
