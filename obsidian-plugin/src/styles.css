@@ -1,0 +1,108 @@
+/* Better TODO — Obsidian plugin styles
+ *
+ * All Tailwind utilities are prefixed with `btodo-` and gated behind the
+ * `.btodo-root` selector so they cannot leak into Obsidian's UI.
+ *
+ * Editor decorations (the strikethrough on completed tasks, due tags, etc.)
+ * and CSS variables are defined unconditionally so they apply inside
+ * Obsidian's CodeMirror editor and reading view.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS variable palette (mirrors the standalone app) ─────────────────── */
+.btodo-root,
+body {
+  --btodo-editor-bg: 30 30 46;
+  --btodo-editor-surface: 24 24 37;
+  --btodo-editor-overlay: 17 17 27;
+  --btodo-editor-border: 49 50 68;
+  --btodo-editor-text: 205 214 244;
+  --btodo-editor-subtext: 166 173 200;
+  --btodo-editor-muted: 88 91 112;
+  --btodo-editor-accent: 137 180 250;
+  --btodo-editor-green: 166 227 161;
+  --btodo-editor-red: 243 139 168;
+  --btodo-editor-yellow: 249 226 175;
+  --btodo-editor-peach: 250 179 135;
+  --btodo-editor-mauve: 203 166 247;
+  --btodo-editor-teal: 148 226 213;
+  --btodo-editor-pink: 245 194 231;
+}
+
+body.theme-light {
+  --btodo-editor-bg: 245 247 251;
+  --btodo-editor-surface: 255 255 255;
+  --btodo-editor-overlay: 238 242 255;
+  --btodo-editor-border: 203 213 225;
+  --btodo-editor-text: 31 41 55;
+  --btodo-editor-subtext: 71 85 105;
+  --btodo-editor-muted: 100 116 139;
+  --btodo-editor-accent: 37 99 235;
+  --btodo-editor-green: 22 163 74;
+  --btodo-editor-red: 220 38 38;
+  --btodo-editor-yellow: 202 138 4;
+  --btodo-editor-peach: 234 88 12;
+  --btodo-editor-mauve: 147 51 234;
+  --btodo-editor-teal: 13 148 136;
+  --btodo-editor-pink: 219 39 119;
+}
+
+/* ── Editor line-level decorations (live preview + source mode) ────────── */
+.cm-line.btodo-done-line {
+  text-decoration: line-through;
+  text-decoration-color: rgb(var(--btodo-editor-green) / 0.7);
+  opacity: 0.55;
+}
+
+.cm-line.btodo-cancelled-line {
+  text-decoration: line-through;
+  text-decoration-color: rgb(var(--btodo-editor-red) / 0.7);
+  opacity: 0.4;
+}
+
+/* Inline @-tag marks in the editor */
+.btodo-overdue {
+  background: rgb(var(--btodo-editor-red) / 0.18);
+  color: rgb(var(--btodo-editor-red));
+  border-radius: 3px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.btodo-due {
+  color: rgb(var(--btodo-editor-peach));
+}
+
+.btodo-lasted {
+  color: rgb(var(--btodo-editor-muted));
+  font-style: italic;
+}
+
+.btodo-done-tag {
+  color: rgb(var(--btodo-editor-green));
+}
+
+/* ── Reading-view (rendered Markdown) decorations ──────────────────────── */
+/* Apply line-through to completed task list items rendered by Obsidian. */
+.markdown-rendered ul > li.task-list-item[data-task="x"],
+.markdown-rendered ul > li.task-list-item[data-task="X"] {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.markdown-rendered ul > li.task-list-item[data-task="-"],
+.markdown-rendered ul > li.task-list-item[data-task="/"] {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+/* ── Timeline view container ───────────────────────────────────────────── */
+.btodo-root {
+  height: 100%;
+  width: 100%;
+  background: rgb(var(--btodo-editor-bg));
+  color: rgb(var(--btodo-editor-text));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

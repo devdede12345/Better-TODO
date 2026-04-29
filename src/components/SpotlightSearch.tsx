@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Search, X, CheckSquare, Square, XSquare, FolderOpen, FileText, ArrowRight, Terminal, Settings as SettingsIcon, LayoutGrid, Sun, FilePlus, Save, SaveAll, FolderTree } from "lucide-react";
+import { Search, X, CheckSquare, Square, XSquare, FolderOpen, FileText, ArrowRight, Terminal, Settings as SettingsIcon, LayoutGrid, Sun, FilePlus, Save, SaveAll, FolderTree, Archive } from "lucide-react";
 import type { ParsedDocument, ParsedProject } from "../editor/todoParser";
 
 export interface SpotlightCommands {
@@ -12,6 +12,7 @@ export interface SpotlightCommands {
   onOpenFile?: () => void;
   onSaveFile?: () => void;
   onSaveAsFile?: () => void;
+  onArchive?: () => void;
 }
 
 interface SpotlightSearchProps extends SpotlightCommands {
@@ -19,6 +20,7 @@ interface SpotlightSearchProps extends SpotlightCommands {
   content: string;
   onClose: () => void;
   onFocusLine: (lineIndex: number) => void;
+  initialQuery?: string;
 }
 
 type ResultCategory = "task" | "project" | "line" | "command";
@@ -83,8 +85,10 @@ export default function SpotlightSearch({
   onOpenFile,
   onSaveFile,
   onSaveAsFile,
+  onArchive,
+  initialQuery = "",
 }: SpotlightSearchProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -150,6 +154,13 @@ export default function SpotlightSearch({
         icon: <FolderTree size={13} className="text-editor-accent shrink-0" />,
         run: onToggleExplorer,
       },
+      onArchive && {
+        id: "cmd-archive",
+        label: "Archive Completed Tasks",
+        keywords: "archive done cancelled completed move cleanup",
+        icon: <Archive size={13} className="text-editor-peach shrink-0" />,
+        run: onArchive,
+      },
       onCycleTheme && {
         id: "cmd-cycle-theme",
         label: "Cycle Theme (Light / Dark / System)",
@@ -159,7 +170,7 @@ export default function SpotlightSearch({
       },
     ];
     return defs.filter((d): d is CommandDef => Boolean(d));
-  }, [onNewTask, onOpenSettings, onToggleWidget, onCycleTheme, onToggleExplorer, onNewFile, onOpenFile, onSaveFile, onSaveAsFile]);
+  }, [onNewTask, onOpenSettings, onToggleWidget, onCycleTheme, onToggleExplorer, onNewFile, onOpenFile, onSaveFile, onSaveAsFile, onArchive]);
 
   // Focus input on mount
   useEffect(() => {

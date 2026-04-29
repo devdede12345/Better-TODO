@@ -87,6 +87,7 @@ function App() {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
   const [showExplorer, setShowExplorer] = useState<boolean>(() => localStorage.getItem("explorer-visible") !== "0");
   const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [spotlightInitialQuery, setSpotlightInitialQuery] = useState("");
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [heatmapOpen, setHeatmapOpen] = useState(false);
   const [uiScale, setUiScale] = useState<number>(() => {
@@ -411,7 +412,27 @@ function App() {
         setShowExplorer((prev) => !prev);
       } else if (mod && key === "f" && !e.shiftKey) {
         e.preventDefault();
+        setSpotlightInitialQuery("");
         setSpotlightOpen(true);
+      } else if (
+        !mod &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key === "/"
+      ) {
+        // Open spotlight on bare "/" press, but not while typing in inputs / editor
+        const t = e.target as HTMLElement | null;
+        const tag = t?.tagName;
+        const isTextField =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          (t?.isContentEditable ?? false) ||
+          !!t?.closest?.(".cm-editor");
+        if (!isTextField) {
+          e.preventDefault();
+          setSpotlightInitialQuery("/");
+          setSpotlightOpen(true);
+        }
       }
     };
     window.addEventListener("keydown", handler);
@@ -442,6 +463,76 @@ function App() {
   const createNewTask = useCallback(() => {
     (window as any).__todoEditorCreateNewTask?.();
   }, []);
+
+  // Archive all done (✔) and cancelled (✘) tasks into a trailing "Archive:" section.
+  const handleArchive = useCallback(() => {
+    const lines = content.split("\n");
+
+    // Locate existing Archive section (case-insensitive, allows "Archive:" / "Archives:")
+    let archiveIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^archives?\s*:\s*$/i.test(lines[i].trim())) {
+        archiveIdx = i;
+        break;
+      }
+    }
+
+    const preLines = archiveIdx >= 0 ? lines.slice(0, archiveIdx) : lines.slice();
+    const archiveTail = archiveIdx >= 0 ? lines.slice(archiveIdx + 1) : [];
+
+    // Walk pre-archive content; track project hierarchy by indent
+    const projectStack: { indent: number; name: string }[] = [];
+    const archived: string[] = [];
+    const kept: string[] = [];
+
+    for (const raw of preLines) {
+      const indentStr = raw.match(/^(\s*)/)?.[1] || "";
+      const indent = indentStr.replace(/\t/g, "  ").length;
+      const trimmed = raw.trim();
+
+      // Project header: "Name:" optionally followed by @tags, not a task marker
+      const isTaskMarker = /^[☐✔✘]/.test(trimmed);
+      const projMatch = !isTaskMarker && trimmed.length > 1
+        ? trimmed.match(/^(.+?):\s*(?:@.*)?$/)
+        : null;
+
+      if (projMatch) {
+        while (projectStack.length && projectStack[projectStack.length - 1].indent >= indent) projectStack.pop();
+        projectStack.push({ indent, name: projMatch[1].trim() });
+        kept.push(raw);
+        continue;
+      }
+
+      const taskMatch = raw.match(/^(\s*)([✔✘])\s+(.*)$/);
+      if (taskMatch) {
+        while (projectStack.length && projectStack[projectStack.length - 1].indent >= indent) projectStack.pop();
+        const projPath = projectStack.map((p) => p.name).join(".");
+        const text = taskMatch[3];
+        const hasProjectTag = /@project\(/.test(text);
+        const projTag = !hasProjectTag && projPath ? ` @project(${projPath})` : "";
+        archived.push(`  ${taskMatch[2]} ${text}${projTag}`);
+        continue;
+      }
+
+      kept.push(raw);
+    }
+
+    if (archived.length === 0) return;
+
+    let result: string[];
+    if (archiveIdx >= 0) {
+      // Insert new archived items right after existing Archive: header
+      result = [...kept, "Archive:", ...archived, ...archiveTail];
+    } else {
+      while (kept.length && kept[kept.length - 1].trim() === "") kept.pop();
+      result = [...kept, "", "Archive:", ...archived];
+    }
+
+    const newContent = result.join("\n");
+    (window as any).__todoEditorSetContent?.(newContent);
+    setContent(newContent);
+    setIsDirty(true);
+  }, [content]);
 
   const handleExplorerOpenFile = useCallback((path: string, fileContent: string) => {
     setFilePath(path);
@@ -525,6 +616,7 @@ function App() {
           dispatchEditorKey("a", true, true);
           break;
         case "edit:find":
+          setSpotlightInitialQuery("");
           setSpotlightOpen(true);
           break;
         case "edit:replace":
@@ -676,7 +768,7 @@ function App() {
                 <MenuItem icon={<Copy size={14} />} label="Copy" shortcut={sc("Ctrl+C", "⌘+C")} onClick={() => menuAction(() => document.execCommand("copy"))} />
                 <MenuItem icon={<ClipboardPaste size={14} />} label="Paste" shortcut={sc("Ctrl+V", "⌘+V")} onClick={() => menuAction(() => document.execCommand("paste"))} />
                 <MenuDivider />
-                <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => setSpotlightOpen(true))} />
+                <MenuItem icon={<Search size={14} />} label="Find" shortcut={sc("Ctrl+F", "⌘+F")} onClick={() => menuAction(() => { setSpotlightInitialQuery(""); setSpotlightOpen(true); })} />
                 <MenuItem icon={<Replace size={14} />} label="Replace" shortcut={sc("Ctrl+H", "⌘+H")} onClick={() => menuAction(() => dispatchEditorKey("h", true))} />
                 <MenuDivider />
                 <MenuItem label="Bold" shortcut={sc("Ctrl+B", "⌘+B")} onClick={() => menuAction(() => dispatchEditorKey("b", true))} />
@@ -797,7 +889,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => setSpotlightOpen(true)}
+            onClick={() => { setSpotlightInitialQuery(""); setSpotlightOpen(true); }}
             className="p-1.5 rounded hover:bg-editor-border transition-colors"
             title={`Search (${sc("Ctrl+F", "⌘+F")})`}
           >
@@ -847,6 +939,8 @@ function App() {
           onOpenFile={handleOpen}
           onSaveFile={handleSave}
           onSaveAsFile={handleSaveAs}
+          onArchive={handleArchive}
+          initialQuery={spotlightInitialQuery}
         />
       )}
 

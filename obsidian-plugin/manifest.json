@@ -1,0 +1,10 @@
+{
+  "id": "better-todo",
+  "name": "Better TODO",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Task tracking with @due / @lasted / @done tags, strikethrough decorations, and a project timeline. Works with Markdown task lists and .todo files.",
+  "author": "devdede",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}
