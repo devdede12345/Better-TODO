@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import {
   X,
   ChevronLeft,
@@ -9,6 +10,10 @@ import {
   Circle,
   CheckCircle2,
   XCircle,
+  Plus,
+  Clipboard,
+  ArrowRight,
+  MapPin,
 } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
 
@@ -19,6 +24,26 @@ interface CalendarViewProps {
   content: string;
   onClose: () => void;
   onFocusLine: (lineIndex: number) => void;
+  onAppendTask?: (taskLine: string) => void;
+}
+
+type MenuKind =
+  | { kind: "day"; date: Date }
+  | { kind: "event"; date: Date; event: CalEvent };
+
+interface MenuState {
+  x: number;
+  y: number;
+  data: MenuKind;
+}
+
+type ComposerMode = "task" | "event" | "longterm";
+
+interface ComposerState {
+  x: number;
+  y: number;
+  date: Date;
+  mode: ComposerMode;
 }
 
 interface CalEvent {
@@ -208,11 +233,19 @@ const MONTH_NAMES = [
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export default function CalendarView({ parsedDoc, content, onClose, onFocusLine }: CalendarViewProps) {
+export default function CalendarView({
+  parsedDoc,
+  content,
+  onClose,
+  onFocusLine,
+  onAppendTask,
+}: CalendarViewProps) {
   const today = useMemo(() => startOfDay(new Date()), []);
   const [cursor, setCursor] = useState<Date>(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [layers, setLayers] = useState({ tasks: true, longTerm: true, events: true });
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [composer, setComposer] = useState<ComposerState | null>(null);
 
   // Title bar overlay handling (match TimelineView)
   useEffect(() => {
@@ -226,14 +259,25 @@ export default function CalendarView({ parsedDoc, content, onClose, onFocusLine 
     };
   }, []);
 
-  // Close on Esc
+  // Close on Esc (unwind overlays first: composer → menu → view)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (composer) {
+        e.stopPropagation();
+        setComposer(null);
+        return;
+      }
+      if (menu) {
+        e.stopPropagation();
+        setMenu(null);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  }, [onClose, composer, menu]);
 
   const events = useMemo(() => buildEvents(parsedDoc, content), [parsedDoc, content]);
 
@@ -319,6 +363,66 @@ export default function CalendarView({ parsedDoc, content, onClose, onFocusLine 
     },
     [onFocusLine, onClose]
   );
+
+  // ── Right-click context menu ────────────────────────────────────────────
+  const openMenu = useCallback((e: ReactMouseEvent, data: MenuKind) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Clamp to viewport
+    const pad = 8;
+    const menuW = 220;
+    const menuH = 240;
+    const x = Math.min(e.clientX, window.innerWidth - menuW - pad);
+    const y = Math.min(e.clientY, window.innerHeight - menuH - pad);
+    setComposer(null);
+    setMenu({ x, y, data });
+  }, []);
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const startCompose = useCallback(
+    (date: Date, mode: ComposerMode, anchor: { x: number; y: number }) => {
+      const pad = 8;
+      const w = 320;
+      const h = 170;
+      const x = Math.min(anchor.x, window.innerWidth - w - pad);
+      const y = Math.min(anchor.y, window.innerHeight - h - pad);
+      setMenu(null);
+      setComposer({ x, y, date, mode });
+    },
+    []
+  );
+
+  const submitCompose = useCallback(
+    (title: string, endDate?: Date) => {
+      if (!composer || !onAppendTask) return;
+      const t = title.trim();
+      if (!t) return;
+      const startISO = fmtISODate(composer.date);
+      let line = `☐ ${t}`;
+      if (composer.mode === "longterm") {
+        const end = endDate ?? addDays(composer.date, 7);
+        const endISO = fmtISODate(end);
+        line += ` @start(${startISO}) @due(${endISO})`;
+      } else if (composer.mode === "event") {
+        line += ` @due(${startISO}) @event`;
+      } else {
+        line += ` @due(${startISO})`;
+      }
+      onAppendTask(line);
+      setComposer(null);
+      setSelectedDate(composer.date);
+    },
+    [composer, onAppendTask]
+  );
+
+  const copyText = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   // Unique categories shown (for sidebar legend)
   const categoryEntries = useMemo(() => {
@@ -491,6 +595,7 @@ export default function CalendarView({ parsedDoc, content, onClose, onFocusLine 
                             key={ci}
                             type="button"
                             onClick={() => setSelectedDate(d)}
+                            onContextMenu={(e) => openMenu(e, { kind: "day", date: d })}
                             className={`relative border-l border-editor-border/40 first:border-l-0 px-1.5 py-1.5 flex flex-col items-stretch text-left transition-colors overflow-hidden ${
                               isCurMonth ? "bg-transparent" : "bg-editor-overlay/10"
                             } ${isSelected ? "ring-1 ring-inset ring-editor-accent" : "hover:bg-editor-overlay/20"}`}
@@ -524,6 +629,9 @@ export default function CalendarView({ parsedDoc, content, onClose, onFocusLine 
                                     e.stopPropagation();
                                     setSelectedDate(d);
                                   }}
+                                  onContextMenu={(e) =>
+                                    openMenu(e, { kind: "event", date: d, event: ev })
+                                  }
                                   className="flex items-center gap-1 min-w-0"
                                   title={ev.title}
                                 >
@@ -578,6 +686,13 @@ export default function CalendarView({ parsedDoc, content, onClose, onFocusLine 
                               e.stopPropagation();
                               setSelectedDate(sp.event.start > wk.days[0] ? sp.event.start : wk.days[0]);
                             }}
+                            onContextMenu={(e) =>
+                              openMenu(e, {
+                                kind: "event",
+                                date: sp.event.start > wk.days[0] ? sp.event.start : wk.days[0],
+                                event: sp.event,
+                              })
+                            }
                             className="absolute flex items-center gap-1 px-2 text-[10px] font-medium cursor-pointer pointer-events-auto overflow-hidden transition-colors hover:brightness-125"
                             style={{
                               left: `calc(${leftPct}% + 2px)`,
@@ -696,6 +811,308 @@ export default function CalendarView({ parsedDoc, content, onClose, onFocusLine 
             </div>
           </div>
         </div>
+
+        {/* Context menu */}
+        {menu && (
+          <ContextMenu
+            state={menu}
+            onClose={closeMenu}
+            onStartCompose={(mode) =>
+              startCompose(menu.data.date, mode, { x: menu.x, y: menu.y })
+            }
+            onJump={(line) => {
+              closeMenu();
+              handleJump(line);
+            }}
+            onCopy={(text) => {
+              copyText(text);
+              closeMenu();
+            }}
+            onSelectDate={(d) => {
+              setSelectedDate(d);
+              closeMenu();
+            }}
+            canAddTask={!!onAppendTask}
+          />
+        )}
+
+        {/* Composer */}
+        {composer && (
+          <TaskComposer
+            state={composer}
+            onCancel={() => setComposer(null)}
+            onSubmit={submitCompose}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Context Menu ──────────────────────────────────────────────────────────
+
+interface ContextMenuProps {
+  state: MenuState;
+  onClose: () => void;
+  onStartCompose: (mode: ComposerMode) => void;
+  onJump: (line: number) => void;
+  onCopy: (text: string) => void;
+  onSelectDate: (d: Date) => void;
+  canAddTask: boolean;
+}
+
+function ContextMenu({
+  state,
+  onClose,
+  onStartCompose,
+  onJump,
+  onCopy,
+  onSelectDate,
+  canAddTask,
+}: ContextMenuProps) {
+  // Dismiss on outside click
+  useEffect(() => {
+    const onDown = (e: globalThis.MouseEvent) => {
+      const el = document.getElementById("cal-context-menu");
+      if (el && !el.contains(e.target as Node)) onClose();
+    };
+    const onScroll = () => onClose();
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("wheel", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("wheel", onScroll);
+    };
+  }, [onClose]);
+
+  const isDay = state.data.kind === "day";
+  const date = state.data.date;
+  const dateLabel = date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <div
+      id="cal-context-menu"
+      role="menu"
+      className="fixed z-[220] w-[220px] rounded-md border border-editor-border bg-editor-bg shadow-xl py-1 text-[12px] select-none"
+      style={{ left: state.x, top: state.y }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-[0.12em] text-editor-muted">
+        {dateLabel}
+      </div>
+
+      {state.data.kind === "event" && (
+        <>
+          <MenuItem
+            icon={<ExternalLink size={12} />}
+            label="Open in editor"
+            onClick={() => onJump(state.data.kind === "event" ? state.data.event.line : -1)}
+          />
+          <MenuItem
+            icon={<Clipboard size={12} />}
+            label="Copy task text"
+            onClick={() =>
+              onCopy(state.data.kind === "event" ? state.data.event.title : "")
+            }
+          />
+          <MenuDivider />
+        </>
+      )}
+
+      <MenuItem
+        icon={<Plus size={12} />}
+        label="Add task here"
+        disabled={!canAddTask}
+        onClick={() => onStartCompose("task")}
+      />
+      <MenuItem
+        icon={<Gift size={12} />}
+        label="Add event here"
+        disabled={!canAddTask}
+        onClick={() => onStartCompose("event")}
+      />
+      <MenuItem
+        icon={<ArrowRight size={12} />}
+        label="Add long-term task…"
+        disabled={!canAddTask}
+        onClick={() => onStartCompose("longterm")}
+      />
+
+      {isDay && (
+        <>
+          <MenuDivider />
+          <MenuItem
+            icon={<MapPin size={12} />}
+            label="Select this day"
+            onClick={() => onSelectDate(date)}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={disabled ? undefined : onClick}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+        disabled
+          ? "text-editor-muted/60 cursor-not-allowed"
+          : "text-editor-text hover:bg-editor-overlay/40"
+      }`}
+    >
+      <span className="shrink-0 text-editor-subtext">{icon}</span>
+      <span className="flex-1 truncate">{label}</span>
+    </button>
+  );
+}
+
+function MenuDivider() {
+  return <div className="my-1 border-t border-editor-border/60" />;
+}
+
+// ─── Task Composer ─────────────────────────────────────────────────────────
+
+interface TaskComposerProps {
+  state: ComposerState;
+  onCancel: () => void;
+  onSubmit: (title: string, endDate?: Date) => void;
+}
+
+function TaskComposer({ state, onCancel, onSubmit }: TaskComposerProps) {
+  const [title, setTitle] = useState("");
+  const [endISO, setEndISO] = useState(
+    fmtISODate(addDays(state.date, state.mode === "longterm" ? 7 : 0))
+  );
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onDown = (e: globalThis.MouseEvent) => {
+      const el = document.getElementById("cal-composer");
+      if (el && !el.contains(e.target as Node)) onCancel();
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [onCancel]);
+
+  const submit = () => {
+    if (state.mode === "longterm") {
+      const parsed = endISO.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (parsed) {
+        onSubmit(title, new Date(+parsed[1], +parsed[2] - 1, +parsed[3]));
+      } else {
+        onSubmit(title);
+      }
+    } else {
+      onSubmit(title);
+    }
+  };
+
+  const modeLabel =
+    state.mode === "event"
+      ? "New event"
+      : state.mode === "longterm"
+      ? "New long-term task"
+      : "New task";
+
+  const dateLabel = state.date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return (
+    <div
+      id="cal-composer"
+      className="fixed z-[230] w-[320px] rounded-md border border-editor-border bg-editor-bg shadow-2xl p-3"
+      style={{ left: state.x, top: state.y }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.12em] text-editor-muted">
+            {modeLabel}
+          </div>
+          <div className="text-[11px] text-editor-subtext">{dateLabel}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="p-1 rounded hover:bg-editor-border transition-colors"
+          title="Cancel (Esc)"
+        >
+          <X size={12} className="text-editor-subtext" />
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={title}
+        placeholder={
+          state.mode === "event" ? "Event name (e.g. Mom's Birthday)" : "Task title"
+        }
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        className="w-full bg-editor-overlay/30 border border-editor-border rounded px-2 py-1.5 text-[13px] text-editor-text outline-none focus:border-editor-accent"
+      />
+      {state.mode === "longterm" && (
+        <div className="mt-2 flex items-center gap-2 text-[11px] text-editor-subtext">
+          <span className="shrink-0">Due</span>
+          <input
+            type="date"
+            value={endISO}
+            onChange={(e) => setEndISO(e.target.value)}
+            min={fmtISODate(state.date)}
+            className="flex-1 bg-editor-overlay/30 border border-editor-border rounded px-2 py-1 text-[12px] text-editor-text outline-none focus:border-editor-accent"
+          />
+        </div>
+      )}
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-2.5 py-1 text-[11px] rounded text-editor-subtext hover:bg-editor-border transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!title.trim()}
+          className={`px-3 py-1 text-[11px] rounded transition-colors ${
+            title.trim()
+              ? "bg-editor-accent text-white hover:brightness-110"
+              : "bg-editor-overlay/40 text-editor-muted cursor-not-allowed"
+          }`}
+        >
+          Add
+        </button>
       </div>
     </div>
   );

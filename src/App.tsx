@@ -545,6 +545,14 @@ function App() {
     (window as any).__todoEditorSetContent?.(fileContent);
   }, []);
 
+  const handleAppendTask = useCallback((taskLine: string) => {
+    const base = content.endsWith("\n") || content.length === 0 ? content : content + "\n";
+    const newContent = base + taskLine + "\n";
+    (window as any).__todoEditorSetContent?.(newContent);
+    setContent(newContent);
+    setIsDirty(true);
+  }, [content]);
+
   const spotlightFocusLine = useCallback((lineIndex: number) => {
     (window as any).__todoEditorFocusLine?.(lineIndex + 1);
   }, []);
@@ -971,6 +979,7 @@ function App() {
           content={content}
           onClose={() => setCalendarOpen(false)}
           onFocusLine={spotlightFocusLine}
+          onAppendTask={handleAppendTask}
         />
       )}
 
