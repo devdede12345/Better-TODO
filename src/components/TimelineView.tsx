@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink, Clock3, Palette } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink, Clock3, Palette, CheckCircle2 } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -417,12 +417,40 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
     setZoom(ZOOM_ORDER[next]);
   };
 
-  const maxLane = scheduledSegments.reduce((m, s) => Math.max(m, s.lane), -1);
   const headerH = majorTicks.length > 0 ? 52 : 32;
-  const topPad = 48;
-  const baseY = headerH + topPad + (maxLane < 0 ? 70 : Math.max(70, (Math.floor(maxLane / 2) + 1) * 50 + 20));
-  const bottomPad = 80;
-  const canvasHeight = baseY + (maxLane < 0 ? 70 : (Math.floor(maxLane / 2) + 1) * 50 + 30) + bottomPad;
+  const rowH = 64;
+  const barH = 44;
+  const sidebarW = 168;
+
+  // Group segments by category for the Gantt rows.
+  const categoryRows = useMemo(() => {
+    const map = new Map<string, { name: string; segs: ScheduledSegment[]; taskCount: number }>();
+    for (const [cat] of categoryColorMap) {
+      map.set(cat, { name: cat, segs: [], taskCount: 0 });
+    }
+    for (const t of tasks) {
+      if (!map.has(t.category)) map.set(t.category, { name: t.category, segs: [], taskCount: 0 });
+      map.get(t.category)!.taskCount += 1;
+    }
+    for (const s of scheduledSegments) {
+      const row = map.get(s.task.category);
+      if (row) row.segs.push(s);
+    }
+    return Array.from(map.values()).filter((r) => r.segs.length > 0);
+  }, [tasks, scheduledSegments, categoryColorMap]);
+
+  const canvasHeight = headerH + Math.max(rowH, categoryRows.length * rowH);
+
+  const getTaskStatus = useCallback(
+    (seg: ScheduledSegment): "completed" | "ongoing" | "upcoming" | "overdue" => {
+      const t = seg.task;
+      if (t.state === "done") return "completed";
+      if (seg.start > now) return "upcoming";
+      if (t.dueAt && t.dueAt.getTime() < now) return "overdue";
+      return "ongoing";
+    },
+    [now]
+  );
 
   return (
     <div
@@ -438,7 +466,10 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
             <Activity size={16} className="text-editor-accent" />
             <h2 className="text-sm font-medium text-editor-text">Timeline Graph</h2>
             <span className="text-[11px] text-editor-muted ml-2">
-              {scheduledSegments.length} segments
+              Today · {fmtISODate(new Date(now))}
+            </span>
+            <span className="text-[11px] text-editor-muted/70">
+              · {scheduledSegments.length} segments
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -482,8 +513,48 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
         </div>
 
         {/* Timeline body */}
-        <div className="shrink-0 min-h-0" style={{ height: "45%" }}>
-          <div ref={scrollRef} className="h-full overflow-auto relative">
+        <div className="shrink-0 min-h-0 flex" style={{ height: "45%" }}>
+          {/* Left sidebar: categories */}
+          <div
+            className="shrink-0 border-r border-editor-border bg-editor-bg flex flex-col"
+            style={{ width: sidebarW }}
+          >
+            <div style={{ height: headerH }} className="border-b border-editor-border" />
+            <div className="flex-1 overflow-hidden">
+              {categoryRows.length === 0 ? (
+                <div className="px-3 py-4 text-[11px] text-editor-muted/70 italic">
+                  No categories
+                </div>
+              ) : (
+                categoryRows.map((row) => {
+                  const color = categoryColorMap.get(row.name) ?? "#63b3ed";
+                  return (
+                    <div
+                      key={row.name}
+                      className="flex items-center gap-2 px-3 border-b border-editor-border/40"
+                      style={{ height: rowH }}
+                    >
+                      <span
+                        className="shrink-0 w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12px] text-editor-text font-medium truncate">
+                          {row.name}
+                        </div>
+                        <div className="text-[10px] text-editor-muted">
+                          {row.taskCount} {row.taskCount === 1 ? "task" : "tasks"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right scrollable canvas */}
+          <div ref={scrollRef} className="flex-1 h-full overflow-auto relative">
             <div style={{ width: timelineWidth, minHeight: canvasHeight, position: "relative" }}>
               {/* ── Sticky two-row header: major labels + minor ticks ── */}
               <div
@@ -514,33 +585,47 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                     {tk.label}
                   </div>
                 ))}
-                {/* NOW marker in header */}
+              </div>
+
+              {/* Vertical grid lines spanning all rows */}
+              <div
+                style={{ position: "absolute", top: headerH, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}
+              >
+                {ticks.map((tk, i) => (
+                  <div
+                    key={i}
+                    style={{ left: msToPx(tk.ms) }}
+                    className="absolute top-0 bottom-0 border-l border-editor-border/20"
+                  />
+                ))}
+                {majorTicks.map((tk, i) => (
+                  <div
+                    key={`mg-${i}`}
+                    style={{ left: msToPx(tk.ms) }}
+                    className="absolute top-0 bottom-0 border-l border-editor-border/50"
+                  />
+                ))}
+              </div>
+
+              {/* NOW vertical line with pill in header */}
+              <div
+                className="absolute z-10 pointer-events-none"
+                style={{ left: nowPx, top: 0, bottom: 0, width: 0 }}
+              >
+                <div className="absolute top-0 bottom-0 border-l-2 border-editor-accent/80" />
                 <div
-                  className="absolute top-0 flex items-center text-[10px] text-editor-accent font-medium pl-1"
-                  style={{ left: nowPx, height: headerH }}
+                  className="absolute -translate-x-1/2 text-[9px] font-semibold text-white bg-editor-accent px-1.5 py-0.5 rounded"
+                  style={{ top: headerH - 18 }}
                 >
-                  <span className="bg-editor-accent/10 px-1 rounded">NOW</span>
+                  NOW
                 </div>
               </div>
 
-              {/* Vertical grid lines */}
-              <div style={{ position: "absolute", top: headerH, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
-                {ticks.map((tk, i) => (
-                  <div key={i} style={{ left: msToPx(tk.ms) }} className="absolute top-0 bottom-0 border-l border-editor-border/20" />
-                ))}
-                {majorTicks.map((tk, i) => (
-                  <div key={`mg-${i}`} style={{ left: msToPx(tk.ms) }} className="absolute top-0 bottom-0 border-l border-editor-border/50" />
-                ))}
-                <div style={{ left: nowPx }} className="absolute top-0 bottom-0 border-l-2 border-editor-accent/60" />
-              </div>
-
-              <div
-                className="absolute border-t-2 border-editor-red/80"
-                style={{ left: 0, right: 0, top: baseY }}
-              />
-
               {scheduledSegments.length === 0 && (
-                <div className="absolute left-6 right-6 text-[12px] text-editor-muted" style={{ top: baseY + 24 }}>
+                <div
+                  className="absolute left-6 right-6 text-[12px] text-editor-muted"
+                  style={{ top: headerH + 24 }}
+                >
                   没有可展示的时间段。请在任务中添加
                   <code className="mx-1 text-editor-accent">@start(...)</code>
                   和
@@ -549,97 +634,101 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                 </div>
               )}
 
-              {scheduledSegments.map((seg, idx) => {
-                const startX = msToPx(seg.start);
-                const endX = msToPx(seg.end);
-                const y = baseY + laneOffset(seg.lane);
-                const color = categoryColorMap.get(seg.task.category) ?? SEGMENT_COLORS[idx % SEGMENT_COLORS.length];
-                const isOngoing = seg.endSource === "ongoing";
-                const barW = Math.max(4, endX - startX);
-                const labelX = startX + barW / 2;
-                const fmtSegTime = (d: Date) =>
-                  spanDays > 2
-                    ? `${d.getMonth() + 1}/${d.getDate()}`
-                    : fmtTime(d);
-                const timeLabel = `${fmtSegTime(new Date(seg.start))} – ${isOngoing ? "now" : fmtSegTime(new Date(seg.end))}`;
-
+              {/* Category rows with task bars */}
+              {categoryRows.map((row, rowIdx) => {
+                const rowTop = headerH + rowIdx * rowH;
+                const rowColor = categoryColorMap.get(row.name) ?? "#63b3ed";
                 return (
-                  <div key={seg.task.line}>
-                    {/* Vertical connector from baseline to lane */}
-                    <div className="absolute w-px" style={{ left: startX, top: Math.min(baseY, y), height: Math.abs(baseY - y), backgroundColor: color, opacity: 0.25 }} />
-                    {!isOngoing && (
-                      <div className="absolute w-px" style={{ left: endX, top: Math.min(baseY, y), height: Math.abs(baseY - y), backgroundColor: color, opacity: 0.25 }} />
-                    )}
-
-                    {/* Horizontal bar */}
-                    <div
-                      className="absolute cursor-pointer"
-                      style={{
-                        left: startX,
-                        top: y - 1.5,
-                        width: barW,
-                        height: 3,
-                        background: isOngoing ? undefined : color,
-                        borderTop: isOngoing ? `3px dashed ${color}` : undefined,
-                        opacity: isOngoing ? 0.75 : 1,
-                        borderRadius: 2,
-                      }}
-                      onMouseEnter={() => setHoveredTask(seg.task)}
-                      onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                      onClick={() => handleTaskClick(seg.task.line)}
-                      title={`${seg.task.cleanText}\n${fmtRange(seg.start, seg.end)}`}
-                    />
-
-                    {/* Start dot (filled) */}
-                    <button
-                      type="button"
-                      onClick={() => handleTaskClick(seg.task.line)}
-                      onMouseEnter={() => setHoveredTask(seg.task)}
-                      onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2"
-                      style={{ left: startX, top: y, borderColor: color, backgroundColor: color }}
-                      title={seg.task.cleanText}
-                    />
-                    {/* End dot */}
-                    {!isOngoing && (
-                      <button
-                        type="button"
-                        onClick={() => handleTaskClick(seg.task.line)}
-                        onMouseEnter={() => setHoveredTask(seg.task)}
-                        onMouseLeave={() => setHoveredTask((h) => (h?.line === seg.task.line ? null : h))}
-                        className="absolute -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2"
-                        style={{ left: endX, top: y, borderColor: color, backgroundColor: color }}
-                        title={seg.task.cleanText}
-                      />
-                    )}
-
-                    {/* Task name label */}
-                    <div
-                      className="absolute text-[10px] text-editor-text font-medium whitespace-nowrap pointer-events-none select-none"
-                      style={{
-                        left: labelX,
-                        top: y + 10,
-                        transform: "translateX(-50%)",
-                      }}
-                    >
-                      {seg.task.cleanText}
-                    </div>
-                    {/* Time range label */}
-                    <div
-                      className="absolute text-[9px] text-editor-muted whitespace-nowrap pointer-events-none select-none"
-                      style={{
-                        left: labelX,
-                        top: y + 24,
-                        transform: "translateX(-50%)",
-                      }}
-                    >
-                      {timeLabel}
-                    </div>
+                  <div
+                    key={row.name}
+                    className="absolute left-0 right-0 border-b border-editor-border/40"
+                    style={{ top: rowTop, height: rowH }}
+                  >
+                    {row.segs.map((seg) => {
+                      const startX = msToPx(seg.start);
+                      const endX = msToPx(seg.end);
+                      const status = getTaskStatus(seg);
+                      const isOverdue = status === "overdue";
+                      const isUpcoming = status === "upcoming";
+                      const isCompleted = status === "completed";
+                      const barColor = isOverdue ? "#f56565" : rowColor;
+                      const barW = Math.max(40, endX - startX);
+                      const dashed = isUpcoming || isOverdue;
+                      const bg = dashed
+                        ? "transparent"
+                        : isCompleted
+                        ? `${barColor}33`
+                        : `${barColor}55`;
+                      const timeLabel = `${fmtTime(new Date(seg.start))} - ${
+                        seg.endSource === "ongoing" ? "now" : fmtTime(new Date(seg.end))
+                      }`;
+                      return (
+                        <div
+                          key={seg.task.line}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleTaskClick(seg.task.line)}
+                          onMouseEnter={() => setHoveredTask(seg.task)}
+                          onMouseLeave={() =>
+                            setHoveredTask((h) => (h?.line === seg.task.line ? null : h))
+                          }
+                          className="absolute rounded-md px-2 py-1 cursor-pointer overflow-hidden transition-colors hover:brightness-125"
+                          style={{
+                            left: startX,
+                            top: (rowH - barH) / 2,
+                            width: barW,
+                            height: barH,
+                            backgroundColor: bg,
+                            border: `1.5px ${dashed ? "dashed" : "solid"} ${barColor}`,
+                          }}
+                          title={`${seg.task.cleanText}\n${fmtRange(seg.start, seg.end)}`}
+                        >
+                          <div className="flex items-center gap-1 text-[11px] font-medium text-editor-text truncate leading-tight">
+                            {isCompleted && (
+                              <CheckCircle2
+                                size={11}
+                                className="shrink-0"
+                                style={{ color: barColor }}
+                              />
+                            )}
+                            <span className="truncate">{seg.task.cleanText}</span>
+                          </div>
+                          <div className="text-[10px] text-editor-subtext truncate leading-tight mt-0.5">
+                            {timeLabel}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
           </div>
+        </div>
+
+        {/* Status legend */}
+        <div className="shrink-0 border-t border-editor-border px-4 py-2 flex items-center gap-5 text-[11px] text-editor-subtext bg-editor-overlay/10">
+          <span className="text-editor-muted">Legend:</span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 size={12} className="text-editor-green" />
+            <span>Completed</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-6 h-0 border-t-2 border-solid border-editor-accent" />
+            <span>Ongoing (In Progress)</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-6 h-0 border-t-2 border-dashed border-editor-accent/70" />
+            <span>Upcoming</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-6 h-0 border-t-2 border-dashed border-editor-red" />
+            <span>Overdue</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-0.5 h-4 bg-editor-accent" />
+            <span>Current Time</span>
+          </span>
         </div>
 
         {/* Task buckets + Focus panel */}
@@ -726,6 +815,10 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
 function fmtDate(d: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function fmtISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function fmtTime(d: Date): string {

@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile, MarkdownView } from "obsidian";
 import { createRoot, Root } from "react-dom/client";
 import { StrictMode, createElement } from "react";
-import Timeline from "../components/Timeline";
+import AgendaTimeline from "../components/AgendaTimeline";
 import { parseTodoDocument, ParsedDocument } from "../parser";
 
 export const VIEW_TYPE_BTODO_TIMELINE = "btodo-timeline-view";
@@ -115,10 +115,9 @@ export class TimelineItemView extends ItemView {
       createElement(
         StrictMode,
         null,
-        createElement(Timeline, {
+        createElement(AgendaTimeline, {
           parsedDoc: this.parsed,
           content: this.content,
-          onClose: () => this.leaf.detach(),
           onFocusLine: this.focusLine,
         })
       )

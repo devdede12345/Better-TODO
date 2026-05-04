@@ -50,16 +50,28 @@ body.theme-light {
 }
 
 /* ── Editor line-level decorations (live preview + source mode) ────────── */
-.cm-line.btodo-done-line {
-  text-decoration: line-through;
-  text-decoration-color: rgb(var(--btodo-editor-green) / 0.7);
-  opacity: 0.55;
+.cm-line.btodo-done-line { opacity: 0.55; }
+.cm-line.btodo-cancelled-line { opacity: 0.4; }
+
+/* `!important` is necessary because community themes commonly set
+ * `text-decoration` on the inner token spans, which would otherwise
+ * win over a parent-level rule. */
+.cm-line.btodo-done-line,
+.cm-line.btodo-done-line span,
+.cm-line.btodo-done-line .cm-list-1,
+.cm-line.btodo-done-line .cm-list-2,
+.cm-line.btodo-done-line .cm-list-3 {
+  text-decoration: line-through !important;
+  text-decoration-color: rgb(var(--btodo-editor-green) / 0.75) !important;
 }
 
-.cm-line.btodo-cancelled-line {
-  text-decoration: line-through;
-  text-decoration-color: rgb(var(--btodo-editor-red) / 0.7);
-  opacity: 0.4;
+.cm-line.btodo-cancelled-line,
+.cm-line.btodo-cancelled-line span,
+.cm-line.btodo-cancelled-line .cm-list-1,
+.cm-line.btodo-cancelled-line .cm-list-2,
+.cm-line.btodo-cancelled-line .cm-list-3 {
+  text-decoration: line-through !important;
+  text-decoration-color: rgb(var(--btodo-editor-red) / 0.75) !important;
 }
 
 /* Inline @-tag marks in the editor */
@@ -85,17 +97,30 @@ body.theme-light {
 }
 
 /* ── Reading-view (rendered Markdown) decorations ──────────────────────── */
-/* Apply line-through to completed task list items rendered by Obsidian. */
-.markdown-rendered ul > li.task-list-item[data-task="x"],
-.markdown-rendered ul > li.task-list-item[data-task="X"] {
-  text-decoration: line-through;
-  opacity: 0.6;
+.markdown-rendered li.task-list-item[data-task="x"],
+.markdown-rendered li.task-list-item[data-task="X"] { opacity: 0.6; }
+.markdown-rendered li.task-list-item[data-task="-"],
+.markdown-rendered li.task-list-item[data-task="/"] { opacity: 0.45; }
+
+.markdown-rendered li.task-list-item[data-task="x"],
+.markdown-rendered li.task-list-item[data-task="x"] *,
+.markdown-rendered li.task-list-item[data-task="X"],
+.markdown-rendered li.task-list-item[data-task="X"] * {
+  text-decoration: line-through !important;
+  text-decoration-color: rgb(var(--btodo-editor-green) / 0.75) !important;
 }
 
-.markdown-rendered ul > li.task-list-item[data-task="-"],
-.markdown-rendered ul > li.task-list-item[data-task="/"] {
-  text-decoration: line-through;
-  opacity: 0.45;
+.markdown-rendered li.task-list-item[data-task="-"],
+.markdown-rendered li.task-list-item[data-task="-"] *,
+.markdown-rendered li.task-list-item[data-task="/"],
+.markdown-rendered li.task-list-item[data-task="/"] * {
+  text-decoration: line-through !important;
+  text-decoration-color: rgb(var(--btodo-editor-red) / 0.75) !important;
+}
+
+/* The checkbox input itself should NOT be struck through. */
+.markdown-rendered li.task-list-item input[type="checkbox"] {
+  text-decoration: none !important;
 }
 
 /* ── Timeline view container ───────────────────────────────────────────── */
@@ -105,4 +130,28 @@ body.theme-light {
   background: rgb(var(--btodo-editor-bg));
   color: rgb(var(--btodo-editor-text));
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Obsidian's default button/input styling (`--interactive-normal`,
+ * `box-shadow`, etc.) overrides our Tailwind backgrounds, making the
+ * Agenda view's buttons appear solid white. Reset them inside our root
+ * so utility classes like `bg-white/5` actually show through. */
+.btodo-root button {
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  line-height: inherit;
+}
+.btodo-root button:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+.btodo-root code {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0 4px;
+  border-radius: 3px;
 }
