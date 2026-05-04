@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink, Clock3, Palette, CheckCircle2 } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink, Clock3, Palette, CheckCircle2, Circle, Sparkles } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -273,6 +273,38 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
 
   const tasks = useMemo(() => buildTimelineTasks(parsedDoc, content), [parsedDoc, content]);
   const now = useMemo(() => Date.now(), []);
+
+  // ── Today Rituals (@everyday / @daily / @ritual) ─────────────────────────
+  const ritualTasks = useMemo(
+    () => tasks.filter((t) => /@(everyday|daily|ritual)\b/i.test(t.rawText)),
+    [tasks]
+  );
+  const todayKey = useMemo(() => fmtISODate(new Date(now)), [now]);
+  const ritualStorageKey = `timeline-rituals-done:${todayKey}`;
+  const [doneRituals, setDoneRituals] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(`timeline-rituals-done:${fmtISODate(new Date())}`);
+      return new Set(raw ? (JSON.parse(raw) as number[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleRitual = useCallback(
+    (line: number) => {
+      setDoneRituals((prev) => {
+        const next = new Set(prev);
+        if (next.has(line)) next.delete(line);
+        else next.add(line);
+        try {
+          localStorage.setItem(ritualStorageKey, JSON.stringify([...next]));
+        } catch {
+          /* noop */
+        }
+        return next;
+      });
+    },
+    [ritualStorageKey]
+  );
 
   // Build category → color mapping (stable order by first occurrence)
   const categoryColorMap = useMemo(() => {
@@ -716,6 +748,60 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
             </div>
           </div>
         </div>
+
+        {/* Today Rituals */}
+        {ritualTasks.length > 0 && (
+          <div className="shrink-0 border-t border-editor-border px-4 py-3 bg-editor-overlay/5">
+            <div className="flex items-center gap-2 mb-2 text-[10px] uppercase tracking-[0.14em] text-editor-green select-none">
+              <Sparkles size={12} />
+              <span>Today Rituals</span>
+              <span className="text-editor-muted/70">·</span>
+              <span className="text-editor-muted/70">
+                {[...doneRituals].filter((l) => ritualTasks.some((t) => t.line === l)).length}/
+                {ritualTasks.length}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+              {ritualTasks.map((t) => {
+                const done = doneRituals.has(t.line);
+                return (
+                  <button
+                    key={t.line}
+                    type="button"
+                    onClick={() => toggleRitual(t.line)}
+                    className={`group flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
+                      done
+                        ? "bg-editor-green/10 border-editor-green/60"
+                        : "bg-editor-overlay/30 border-editor-border hover:border-editor-green/40 hover:bg-editor-overlay/50"
+                    }`}
+                    title={t.cleanText}
+                  >
+                    <span
+                      className={`text-[12px] truncate flex-1 transition-colors ${
+                        done
+                          ? "text-editor-green/90 line-through decoration-editor-green/60"
+                          : "text-editor-text"
+                      }`}
+                    >
+                      {t.cleanText}
+                    </span>
+                    {done ? (
+                      <CheckCircle2
+                        size={16}
+                        className="text-editor-green shrink-0"
+                      />
+                    ) : (
+                      <Circle
+                        size={16}
+                        className="text-editor-muted shrink-0 group-hover:text-editor-green/70"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Status legend */}
         <div className="shrink-0 border-t border-editor-border px-4 py-2 flex items-center gap-5 text-[11px] text-editor-subtext bg-editor-overlay/10">

@@ -24,6 +24,7 @@ import {
   LayoutGrid,
   Activity,
   BarChart2,
+  CalendarDays,
 } from "lucide-react";
 import TodoEditor from "./components/TodoEditor";
 import Dashboard from "./components/Dashboard";
@@ -31,6 +32,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import FileExplorer from "./components/FileExplorer";
 import SpotlightSearch from "./components/SpotlightSearch";
 import TimelineView from "./components/TimelineView";
+import CalendarView from "./components/CalendarView";
 import HeatmapView from "./components/HeatmapView";
 import { useEditorSettings, normalizeFontFamily } from "./hooks/useEditorSettings";
 import { type ParsedDocument, formatMinutes } from "./editor/todoParser";
@@ -89,6 +91,7 @@ function App() {
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const [spotlightInitialQuery, setSpotlightInitialQuery] = useState("");
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [heatmapOpen, setHeatmapOpen] = useState(false);
   const [uiScale, setUiScale] = useState<number>(() => {
     const saved = parseFloat(localStorage.getItem("ui-scale") || "1");
@@ -873,6 +876,13 @@ function App() {
             <Activity size={14} className={timelineOpen ? "text-editor-accent" : "text-editor-subtext"} />
           </button>
           <button
+            onClick={() => setCalendarOpen(true)}
+            className={`p-1.5 rounded transition-colors ${calendarOpen ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
+            title="Calendar View"
+          >
+            <CalendarDays size={14} className={calendarOpen ? "text-editor-accent" : "text-editor-subtext"} />
+          </button>
+          <button
             onClick={() => setHeatmapOpen(true)}
             className={`p-1.5 rounded transition-colors ${heatmapOpen ? "bg-editor-accent/20" : "hover:bg-editor-border"}`}
             title="Activity Heatmap"
@@ -950,6 +960,16 @@ function App() {
           parsedDoc={parsedDoc}
           content={content}
           onClose={() => setTimelineOpen(false)}
+          onFocusLine={spotlightFocusLine}
+        />
+      )}
+
+      {/* Calendar View */}
+      {calendarOpen && (
+        <CalendarView
+          parsedDoc={parsedDoc}
+          content={content}
+          onClose={() => setCalendarOpen(false)}
           onFocusLine={spotlightFocusLine}
         />
       )}
