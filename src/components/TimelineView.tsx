@@ -240,6 +240,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
   const [zoom, setZoom] = useState<ZoomLevel>("day");
   const [hoveredTask, setHoveredTask] = useState<TimelineTask | null>(null);
   const [focusedTask, setFocusedTask] = useState<TimelineTask | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // On Windows: darken the title bar overlay while the timeline is open
@@ -519,8 +520,11 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
             className="shrink-0 border-r border-editor-border bg-editor-bg flex flex-col"
             style={{ width: sidebarW }}
           >
-            <div style={{ height: headerH }} className="border-b border-editor-border" />
-            <div className="flex-1 overflow-hidden">
+            <div style={{ height: headerH }} className="border-b border-editor-border shrink-0" />
+            <div className="flex-1 overflow-hidden relative">
+              <div
+                style={{ transform: `translateY(${-scrollTop}px)`, willChange: "transform" }}
+              >
               {categoryRows.length === 0 ? (
                 <div className="px-3 py-4 text-[11px] text-editor-muted/70 italic">
                   No categories
@@ -550,11 +554,16 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                   );
                 })
               )}
+              </div>
             </div>
           </div>
 
           {/* Right scrollable canvas */}
-          <div ref={scrollRef} className="flex-1 h-full overflow-auto relative">
+          <div
+            ref={scrollRef}
+            onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+            className="flex-1 h-full overflow-auto relative"
+          >
             <div style={{ width: timelineWidth, minHeight: canvasHeight, position: "relative" }}>
               {/* ── Sticky two-row header: major labels + minor ticks ── */}
               <div
@@ -652,7 +661,8 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       const isUpcoming = status === "upcoming";
                       const isCompleted = status === "completed";
                       const barColor = isOverdue ? "#f56565" : rowColor;
-                      const barW = Math.max(40, endX - startX);
+                      const rawW = endX - startX;
+                      const barW = Math.max(40, rawW);
                       const dashed = isUpcoming || isOverdue;
                       const bg = dashed
                         ? "transparent"
@@ -662,6 +672,7 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
                       const timeLabel = `${fmtTime(new Date(seg.start))} - ${
                         seg.endSource === "ongoing" ? "now" : fmtTime(new Date(seg.end))
                       }`;
+
                       return (
                         <div
                           key={seg.task.line}
