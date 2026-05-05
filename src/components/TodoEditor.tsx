@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { EditorState, Prec, Compartment } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor, highlightSpecialChars } from "@codemirror/view";
 import type { EditorSettings } from "../hooks/useEditorSettings";
@@ -14,6 +14,11 @@ import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
 import { buildTodoKeymap, todoClickToggle, todoSlashCommands, setSlashCommands } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
 import { parseTodoDocument, type ParsedDocument } from "../editor/todoParser";
+import {
+  useCategoryColors,
+  setCategoryColor,
+  CATEGORY_PALETTE,
+} from "../editor/categoryColors";
 
 /**
  * Fold service: a "Section Header:" line is foldable. The folded range
@@ -57,6 +62,12 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
   const lineNumbersCompartment = useRef(new Compartment());
   const editorStyleCompartment = useRef(new Compartment());
   const keymapCompartment = useRef(new Compartment());
+
+  // Right-click on section header → category color picker
+  const customColors = useCategoryColors();
+  const [sectionColorPicker, setSectionColorPicker] = useState<
+    { x: number; y: number; category: string } | null
+  >(null);
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -149,7 +160,29 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
 
     viewRef.current = view;
 
+    // Right-click a section header ("Category:") to change its colour.
+    const container = editorRef.current;
+    const onContextMenu = (e: MouseEvent) => {
+      const v = viewRef.current;
+      if (!v) return;
+      const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
+      if (pos === null) return;
+      const line = v.state.doc.lineAt(pos);
+      const text = line.text;
+      const trimmed = text.trim();
+      if (trimmed.length <= 1) return;
+      if (!trimmed.endsWith(":")) return;
+      if (/^\s*[☐✔✘]\s+/.test(text)) return;
+      const m = text.match(/^(\s*)(.*?):\s*(@.*)?$/);
+      const category = (m?.[2] ?? trimmed.slice(0, -1)).trim();
+      if (!category) return;
+      e.preventDefault();
+      setSectionColorPicker({ x: e.clientX, y: e.clientY, category });
+    };
+    container.addEventListener("contextmenu", onContextMenu);
+
     return () => {
+      container.removeEventListener("contextmenu", onContextMenu);
       view.destroy();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -259,11 +292,76 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
     };
   }, [setContent, createNewTask, focusLine]);
 
+  // Dismiss color picker on outside click / Esc
+  useEffect(() => {
+    if (!sectionColorPicker) return;
+    const onDown = (e: MouseEvent) => {
+      const el = document.getElementById("section-color-picker");
+      if (el && !el.contains(e.target as Node)) setSectionColorPicker(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setSectionColorPicker(null);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [sectionColorPicker]);
+
   return (
-    <div
-      ref={editorRef}
-      className="flex-1 overflow-hidden"
-      style={{ height: "100%" }}
-    />
+    <>
+      <div
+        ref={editorRef}
+        className="flex-1 overflow-hidden"
+        style={{ height: "100%" }}
+      />
+      {sectionColorPicker && (
+        <div
+          id="section-color-picker"
+          className="fixed z-[240] rounded-md border border-editor-border bg-editor-bg shadow-xl p-2"
+          style={{ left: sectionColorPicker.x, top: sectionColorPicker.y }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="text-[10px] uppercase tracking-[0.12em] text-editor-muted px-1 pb-1.5 select-none">
+            Section color · {sectionColorPicker.category}
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {CATEGORY_PALETTE.map((c) => {
+              const isCurrent = customColors[sectionColorPicker.category] === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => {
+                    setCategoryColor(sectionColorPicker.category, c);
+                    setSectionColorPicker(null);
+                  }}
+                  className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+                    isCurrent ? "ring-2 ring-offset-1 ring-offset-editor-bg ring-white/70" : ""
+                  }`}
+                  style={{ backgroundColor: c, borderColor: `${c}aa` }}
+                  title={c}
+                />
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryColor(sectionColorPicker.category, null);
+              setSectionColorPicker(null);
+            }}
+            className="mt-2 w-full text-[10px] text-editor-subtext hover:text-editor-text transition-colors py-1 rounded hover:bg-editor-overlay/30"
+          >
+            Reset to default
+          </button>
+        </div>
+      )}
+    </>
   );
 }

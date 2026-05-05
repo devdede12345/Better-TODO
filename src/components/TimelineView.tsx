@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import type { CSSProperties } from "react";
 import { X, ZoomIn, ZoomOut, Activity, ArrowRight, Clock, AlertTriangle, ExternalLink, Clock3, Palette, CheckCircle2, Circle, Sparkles } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
+import { useCategoryColors } from "../editor/categoryColors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -306,18 +308,69 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
     [ritualStorageKey]
   );
 
-  // Build category → color mapping (stable order by first occurrence)
+  // ── Per-ritual color customization (right-click palette) ─────────────────
+  const RITUAL_COLOR_KEY = "timeline-ritual-colors";
+  const [ritualColors, setRitualColors] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(RITUAL_COLOR_KEY) || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [colorMenu, setColorMenu] = useState<{ x: number; y: number; key: string } | null>(null);
+
+  const setRitualColor = useCallback((key: string, color: string | null) => {
+    setRitualColors((prev) => {
+      const next = { ...prev };
+      if (color === null) delete next[key];
+      else next[key] = color;
+      try {
+        localStorage.setItem(RITUAL_COLOR_KEY, JSON.stringify(next));
+      } catch {
+        /* noop */
+      }
+      return next;
+    });
+    setColorMenu(null);
+  }, []);
+
+  // Dismiss color menu on outside click / Esc
+  useEffect(() => {
+    if (!colorMenu) return;
+    const onDown = (e: MouseEvent) => {
+      const el = document.getElementById("ritual-color-menu");
+      if (el && !el.contains(e.target as Node)) setColorMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setColorMenu(null);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [colorMenu]);
+
+  // Build category → color mapping (stable order by first occurrence).
+  // User-chosen overrides from the shared store take precedence over the
+  // default cycling palette.
+  const customColors = useCategoryColors();
   const categoryColorMap = useMemo(() => {
     const map = new Map<string, string>();
     let idx = 0;
     for (const t of tasks) {
       if (!map.has(t.category)) {
-        map.set(t.category, SEGMENT_COLORS[idx % SEGMENT_COLORS.length]);
+        const override = customColors[t.category];
+        map.set(t.category, override ?? SEGMENT_COLORS[idx % SEGMENT_COLORS.length]);
         idx++;
       }
     }
     return map;
-  }, [tasks]);
+  }, [tasks, customColors]);
 
   // ── Task buckets for the list below the graph ──
   const { ongoingTasks, futureTasks, archivedTasks } = useMemo(() => {
@@ -764,36 +817,61 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
               {ritualTasks.map((t) => {
                 const done = doneRituals.has(t.line);
+                const customColor = ritualColors[t.cleanText];
+                const accent = customColor ?? "#a6e3a1"; // default: editor-green-ish
+                const style: CSSProperties = done
+                  ? {
+                      backgroundColor: `${accent}1a`,
+                      borderColor: `${accent}99`,
+                    }
+                  : {
+                      borderColor: `${accent}33`,
+                    };
                 return (
                   <button
                     key={t.line}
                     type="button"
                     onClick={() => toggleRitual(t.line)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      const pad = 8;
+                      const w = 180;
+                      const h = 90;
+                      setColorMenu({
+                        x: Math.min(e.clientX, window.innerWidth - w - pad),
+                        y: Math.min(e.clientY, window.innerHeight - h - pad),
+                        key: t.cleanText,
+                      });
+                    }}
                     className={`group flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
-                      done
-                        ? "bg-editor-green/10 border-editor-green/60"
-                        : "bg-editor-overlay/30 border-editor-border hover:border-editor-green/40 hover:bg-editor-overlay/50"
+                      done ? "" : "bg-editor-overlay/30 hover:bg-editor-overlay/50"
                     }`}
-                    title={t.cleanText}
+                    style={style}
+                    title={`${t.cleanText}\nRight-click to set color`}
                   >
                     <span
-                      className={`text-[12px] truncate flex-1 transition-colors ${
-                        done
-                          ? "text-editor-green/90 line-through decoration-editor-green/60"
-                          : "text-editor-text"
-                      }`}
+                      className="text-[12px] truncate flex-1 transition-colors"
+                      style={{
+                        color: done ? accent : undefined,
+                        textDecoration: done ? "line-through" : undefined,
+                        textDecorationColor: done ? `${accent}99` : undefined,
+                      }}
                     >
                       {t.cleanText}
                     </span>
                     {done ? (
                       <CheckCircle2
                         size={16}
-                        className="text-editor-green shrink-0"
+                        className="shrink-0"
+                        style={{ color: accent }}
                       />
                     ) : (
                       <Circle
                         size={16}
-                        className="text-editor-muted shrink-0 group-hover:text-editor-green/70"
+                        className="shrink-0 text-editor-muted"
+                        style={{
+                          color: customColor ? `${accent}aa` : undefined,
+                        }}
                       />
                     )}
                   </button>
@@ -906,9 +984,58 @@ export default function TimelineView({ parsedDoc, content, onClose, onFocusLine 
           </div>
         )}
       </div>
+
+      {/* Ritual color palette popover */}
+      {colorMenu && (
+        <div
+          id="ritual-color-menu"
+          className="fixed z-[220] rounded-md border border-editor-border bg-editor-bg shadow-xl p-2"
+          style={{ left: colorMenu.x, top: colorMenu.y }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="text-[10px] uppercase tracking-[0.12em] text-editor-muted px-1 pb-1.5 select-none">
+            Ritual color
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {RITUAL_PALETTE.map((c) => {
+              const isCurrent = ritualColors[colorMenu.key] === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setRitualColor(colorMenu.key, c)}
+                  className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+                    isCurrent ? "ring-2 ring-offset-1 ring-offset-editor-bg ring-white/70" : ""
+                  }`}
+                  style={{ backgroundColor: c, borderColor: `${c}aa` }}
+                  title={c}
+                />
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setRitualColor(colorMenu.key, null)}
+            className="mt-2 w-full text-[10px] text-editor-subtext hover:text-editor-text transition-colors py-1 rounded hover:bg-editor-overlay/30"
+          >
+            Reset to default
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+const RITUAL_PALETTE = [
+  "#a6e3a1", // green
+  "#94e2d5", // teal
+  "#89b4fa", // blue
+  "#cba6f7", // mauve
+  "#f5c2e7", // pink
+  "#f38ba8", // red
+  "#fab387", // peach
+  "#f9e2af", // yellow
+];
 
 function fmtDate(d: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;

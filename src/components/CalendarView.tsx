@@ -16,6 +16,11 @@ import {
   MapPin,
 } from "lucide-react";
 import type { ParsedDocument, TaskState } from "../editor/todoParser";
+import {
+  useCategoryColors,
+  setCategoryColor,
+  CATEGORY_PALETTE,
+} from "../editor/categoryColors";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -171,7 +176,11 @@ function fmtTime(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function buildEvents(doc: ParsedDocument | null, content: string): CalEvent[] {
+function buildEvents(
+  doc: ParsedDocument | null,
+  content: string,
+  overrides: Record<string, string> = {}
+): CalEvent[] {
   if (!doc) return [];
   const catMap = buildCategoryMapFromContent(content);
   const catColor = new Map<string, string>();
@@ -209,7 +218,8 @@ function buildEvents(doc: ParsedDocument | null, content: string): CalEvent[] {
 
     const category = catMap.get(t.line) ?? "Other";
     if (!catColor.has(category)) {
-      catColor.set(category, SEGMENT_COLORS[ci % SEGMENT_COLORS.length]);
+      const override = overrides[category];
+      catColor.set(category, override ?? SEGMENT_COLORS[ci % SEGMENT_COLORS.length]);
       ci++;
     }
 
@@ -255,6 +265,9 @@ export default function CalendarView({
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<{ startDate: Date; currentDate: Date; moved: boolean } | null>(null);
   const dragHandledRef = useRef(false);
+  const [colorPicker, setColorPicker] = useState<
+    { x: number; y: number; category: string } | null
+  >(null);
 
   // Title bar overlay handling (match TimelineView)
   useEffect(() => {
@@ -342,7 +355,11 @@ export default function CalendarView({
     };
   }, [onAppendTask]);
 
-  const events = useMemo(() => buildEvents(parsedDoc, content), [parsedDoc, content]);
+  const customColors = useCategoryColors();
+  const events = useMemo(
+    () => buildEvents(parsedDoc, content, customColors),
+    [parsedDoc, content, customColors]
+  );
 
   const filtered = useMemo(
     () =>
@@ -924,6 +941,10 @@ export default function CalendarView({
               setSelectedDate(d);
               closeMenu();
             }}
+            onChangeColor={(category) => {
+              setColorPicker({ x: menu.x, y: menu.y, category });
+              setMenu(null);
+            }}
             canAddTask={!!onAppendTask}
           />
         )}
@@ -936,7 +957,92 @@ export default function CalendarView({
             onSubmit={submitCompose}
           />
         )}
+
+        {/* Category color picker */}
+        {colorPicker && (
+          <CategoryColorPicker
+            x={colorPicker.x}
+            y={colorPicker.y}
+            category={colorPicker.category}
+            currentColor={customColors[colorPicker.category]}
+            onPick={(color) => {
+              setCategoryColor(colorPicker.category, color);
+              setColorPicker(null);
+            }}
+            onReset={() => {
+              setCategoryColor(colorPicker.category, null);
+              setColorPicker(null);
+            }}
+            onClose={() => setColorPicker(null)}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+// ─── Category Color Picker ─────────────────────────────────────────────────
+
+function CategoryColorPicker({
+  x,
+  y,
+  category,
+  currentColor,
+  onPick,
+  onReset,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  category: string;
+  currentColor?: string;
+  onPick: (color: string) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onDown = (e: globalThis.MouseEvent) => {
+      const el = document.getElementById("cal-color-picker");
+      if (el && !el.contains(e.target as Node)) onClose();
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [onClose]);
+
+  return (
+    <div
+      id="cal-color-picker"
+      className="fixed z-[240] rounded-md border border-editor-border bg-editor-bg shadow-xl p-2"
+      style={{ left: x, top: y }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className="text-[10px] uppercase tracking-[0.12em] text-editor-muted px-1 pb-1.5 select-none">
+        Color · {category}
+      </div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {CATEGORY_PALETTE.map((c) => {
+          const isCurrent = currentColor === c;
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onPick(c)}
+              className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+                isCurrent ? "ring-2 ring-offset-1 ring-offset-editor-bg ring-white/70" : ""
+              }`}
+              style={{ backgroundColor: c, borderColor: `${c}aa` }}
+              title={c}
+            />
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-2 w-full text-[10px] text-editor-subtext hover:text-editor-text transition-colors py-1 rounded hover:bg-editor-overlay/30"
+      >
+        Reset to default
+      </button>
     </div>
   );
 }
@@ -950,6 +1056,7 @@ interface ContextMenuProps {
   onJump: (line: number) => void;
   onCopy: (text: string) => void;
   onSelectDate: (d: Date) => void;
+  onChangeColor: (category: string) => void;
   canAddTask: boolean;
 }
 
@@ -960,6 +1067,7 @@ function ContextMenu({
   onJump,
   onCopy,
   onSelectDate,
+  onChangeColor,
   canAddTask,
 }: ContextMenuProps) {
   // Dismiss on outside click
@@ -1009,6 +1117,29 @@ function ContextMenu({
             label="Copy task text"
             onClick={() =>
               onCopy(state.data.kind === "event" ? state.data.event.title : "")
+            }
+          />
+          <MenuItem
+            icon={
+              <span
+                className="inline-block w-3 h-3 rounded-full border"
+                style={{
+                  backgroundColor:
+                    state.data.kind === "event" ? state.data.event.color : undefined,
+                  borderColor:
+                    state.data.kind === "event"
+                      ? `${state.data.event.color}aa`
+                      : undefined,
+                }}
+              />
+            }
+            label={`Change color: ${
+              state.data.kind === "event" ? state.data.event.category : ""
+            }`}
+            onClick={() =>
+              onChangeColor(
+                state.data.kind === "event" ? state.data.event.category : ""
+              )
             }
           />
           <MenuDivider />
