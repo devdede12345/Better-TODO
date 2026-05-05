@@ -5,7 +5,7 @@ import type { EditorSettings } from "../hooks/useEditorSettings";
 import { normalizeFontFamily } from "../hooks/useEditorSettings";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { keymap } from "@codemirror/view";
-import { indentOnInput, foldGutter, bracketMatching, indentUnit } from "@codemirror/language";
+import { indentOnInput, foldGutter, bracketMatching, indentUnit, foldService, foldKeymap } from "@codemirror/language";
 import { highlightSelectionMatches } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 
@@ -14,6 +14,35 @@ import { todoEditorTheme, todoHighlighting } from "../editor/todo-theme";
 import { buildTodoKeymap, todoClickToggle, todoSlashCommands, setSlashCommands } from "../editor/todo-keymap";
 import { todoDecorations } from "../editor/todo-decorations";
 import { parseTodoDocument, type ParsedDocument } from "../editor/todoParser";
+
+/**
+ * Fold service: a "Section Header:" line is foldable. The folded range
+ * spans from the end of the header line to the end of the last line whose
+ * indentation is strictly greater than the header's indent. Blank lines
+ * between children are included transparently.
+ */
+const todoFoldService = foldService.of((state, lineStart) => {
+  const line = state.doc.lineAt(lineStart);
+  const text = line.text;
+  const trimmed = text.trim();
+  if (trimmed.length <= 1) return null;
+  if (!trimmed.endsWith(":")) return null;
+  // Skip task-marker lines ("☐ foo:" etc.) — only true section headers fold.
+  if (/^\s*[☐✔✘]\s+/.test(text)) return null;
+
+  const headerIndent = /^\s*/.exec(text)![0].length;
+  let endLine = line.number;
+  for (let n = line.number + 1; n <= state.doc.lines; n++) {
+    const l = state.doc.line(n);
+    const lt = l.text;
+    if (lt.trim().length === 0) continue; // blanks don't break a block
+    const ind = /^\s*/.exec(lt)![0].length;
+    if (ind <= headerIndent) break;
+    endLine = n;
+  }
+  if (endLine === line.number) return null;
+  return { from: line.to, to: state.doc.line(endLine).to };
+});
 
 interface TodoEditorProps {
   initialContent: string;
@@ -81,6 +110,7 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
         indentUnit.of("  "),
 
         // Folding
+        todoFoldService,
         foldGutter({
           openText: "▾",
           closedText: "▸",
@@ -92,6 +122,7 @@ export default function TodoEditor({ initialContent, onChange, onParsed, setting
         keymap.of([
           ...defaultKeymap,
           ...historyKeymap,
+          ...foldKeymap,
           indentWithTab,
         ]),
 

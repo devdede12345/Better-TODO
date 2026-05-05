@@ -44,6 +44,12 @@ interface ComposerState {
   y: number;
   date: Date;
   mode: ComposerMode;
+  endDate?: Date;
+}
+
+interface DragState {
+  startDate: Date;
+  currentDate: Date;
 }
 
 interface CalEvent {
@@ -246,6 +252,9 @@ export default function CalendarView({
   const [layers, setLayers] = useState({ tasks: true, longTerm: true, events: true });
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [composer, setComposer] = useState<ComposerState | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const dragRef = useRef<{ startDate: Date; currentDate: Date; moved: boolean } | null>(null);
+  const dragHandledRef = useRef(false);
 
   // Title bar overlay handling (match TimelineView)
   useEffect(() => {
@@ -278,6 +287,60 @@ export default function CalendarView({
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose, composer, menu]);
+
+  // Right-click drag to create long-term task ─────────────────────────────
+  useEffect(() => {
+    const onMove = (e: globalThis.MouseEvent) => {
+      if (!dragRef.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const dateEl = el?.closest("[data-cal-date]") as HTMLElement | null;
+      if (!dateEl) return;
+      const iso = dateEl.getAttribute("data-cal-date");
+      const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return;
+      const d = new Date(+m[1], +m[2] - 1, +m[3]);
+      if (!sameDay(d, dragRef.current.currentDate)) {
+        dragRef.current.currentDate = d;
+        dragRef.current.moved = !sameDay(d, dragRef.current.startDate);
+        setDrag({
+          startDate: dragRef.current.startDate,
+          currentDate: d,
+        });
+      }
+    };
+    const onUp = (e: globalThis.MouseEvent) => {
+      if (e.button !== 2) return;
+      const cur = dragRef.current;
+      if (!cur) return;
+      dragRef.current = null;
+      setDrag(null);
+      if (cur.moved && onAppendTask) {
+        dragHandledRef.current = true;
+        const [a, b] =
+          cur.startDate <= cur.currentDate
+            ? [cur.startDate, cur.currentDate]
+            : [cur.currentDate, cur.startDate];
+        const w = 320;
+        const h = 220;
+        const pad = 8;
+        setMenu(null);
+        setComposer({
+          x: Math.min(e.clientX, window.innerWidth - w - pad),
+          y: Math.min(e.clientY, window.innerHeight - h - pad),
+          date: a,
+          endDate: b,
+          mode: "longterm",
+        });
+        setSelectedDate(a);
+      }
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [onAppendTask]);
 
   const events = useMemo(() => buildEvents(parsedDoc, content), [parsedDoc, content]);
 
@@ -590,15 +653,43 @@ export default function CalendarView({
                         const isSelected = sameDay(d, selectedDate);
                         const key = fmtISODate(d);
                         const singles = singleDayByKey.get(key) ?? [];
+                        let isInDrag = false;
+                        if (drag) {
+                          const [lo, hi] =
+                            drag.startDate <= drag.currentDate
+                              ? [drag.startDate, drag.currentDate]
+                              : [drag.currentDate, drag.startDate];
+                          isInDrag = d >= lo && d <= hi;
+                        }
                         return (
                           <button
                             key={ci}
                             type="button"
+                            data-cal-date={fmtISODate(d)}
                             onClick={() => setSelectedDate(d)}
-                            onContextMenu={(e) => openMenu(e, { kind: "day", date: d })}
+                            onMouseDown={(e) => {
+                              if (e.button === 2) {
+                                dragRef.current = { startDate: d, currentDate: d, moved: false };
+                                setDrag({ startDate: d, currentDate: d });
+                              }
+                            }}
+                            onContextMenu={(e) => {
+                              if (dragHandledRef.current) {
+                                dragHandledRef.current = false;
+                                e.preventDefault();
+                                return;
+                              }
+                              openMenu(e, { kind: "day", date: d });
+                            }}
                             className={`relative border-l border-editor-border/40 first:border-l-0 px-1.5 py-1.5 flex flex-col items-stretch text-left transition-colors overflow-hidden ${
                               isCurMonth ? "bg-transparent" : "bg-editor-overlay/10"
-                            } ${isSelected ? "ring-1 ring-inset ring-editor-accent" : "hover:bg-editor-overlay/20"}`}
+                            } ${
+                              isInDrag
+                                ? "bg-editor-accent/20 ring-1 ring-inset ring-editor-accent/70"
+                                : isSelected
+                                ? "ring-1 ring-inset ring-editor-accent"
+                                : "hover:bg-editor-overlay/20"
+                            }`}
                           >
                             <div className="flex items-center justify-between shrink-0">
                               <span
@@ -625,6 +716,7 @@ export default function CalendarView({
                               {singles.slice(0, 2).map((ev) => (
                                 <div
                                   key={ev.line}
+                                  onMouseDown={(e) => e.stopPropagation()}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedDate(d);
@@ -999,7 +1091,7 @@ interface TaskComposerProps {
 function TaskComposer({ state, onCancel, onSubmit }: TaskComposerProps) {
   const [title, setTitle] = useState("");
   const [endISO, setEndISO] = useState(
-    fmtISODate(addDays(state.date, state.mode === "longterm" ? 7 : 0))
+    fmtISODate(state.endDate ?? addDays(state.date, state.mode === "longterm" ? 7 : 0))
   );
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1036,12 +1128,16 @@ function TaskComposer({ state, onCancel, onSubmit }: TaskComposerProps) {
       ? "New long-term task"
       : "New task";
 
-  const dateLabel = state.date.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const fmtShort = (d: Date) =>
+    d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  const dateLabel =
+    state.mode === "longterm" && state.endDate
+      ? `${fmtShort(state.date)} → ${fmtShort(state.endDate)}`
+      : fmtShort(state.date);
 
   return (
     <div
